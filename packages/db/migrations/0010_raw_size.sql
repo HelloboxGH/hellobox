@@ -1,0 +1,1 @@
+ALTER TABLE "messages" ADD COLUMN "raw_size" bigint DEFAULT 0 NOT NULL;

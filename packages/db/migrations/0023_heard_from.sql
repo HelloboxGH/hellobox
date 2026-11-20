@@ -1,0 +1,1 @@
+ALTER TABLE "user" ADD COLUMN "heard_from" text;

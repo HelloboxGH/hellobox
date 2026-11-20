@@ -1,0 +1,210 @@
+import type { Readable } from "node:stream";
+import {
+  AbortMultipartUploadCommand,
+  CompleteMultipartUploadCommand,
+  CreateMultipartUploadCommand,
+  DeleteObjectCommand,
+  DeleteObjectsCommand,
+  GetObjectCommand,
+  HeadObjectCommand,
+  ListObjectsV2Command,
+  PutObjectCommand,
+  S3Client,
+  UploadPartCommand,
+} from "@aws-sdk/client-s3";
+import { Upload } from "@aws-sdk/lib-storage";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { getR2Env } from "@hellobox/config";
+
+const PART_SIZE = 8 * 1024 * 1024;
+const URL_TTL_SECONDS = 15 * 60;
+
+let client: S3Client | undefined;
+
+function s3() {
+  const env = getR2Env();
+  client ??= new S3Client({
+    region: "auto",
+    endpoint: `https://${env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+    credentials: {
+      accessKeyId: env.R2_ACCESS_KEY_ID,
+      secretAccessKey: env.R2_SECRET_ACCESS_KEY,
+    },
+  });
+  return client;
+}
+
+const bucket = () => getR2Env().R2_BUCKET;
+
+export const messageKey = (workspaceId: string, messageId: string, id: string) =>
+  `workspaces/${workspaceId}/messages/${messageId}/${id}`;
+export const avatarKey = (userId: string, file: string) => `avatars/${userId}/${file}`;
+// The creators app has its own accounts, so its photos live apart from the main app's.
+export const creatorAvatarKey = (userId: string, file: string) => `creators/avatars/${userId}/${file}`;
+export const logoKey = (workspaceId: string, file: string) => `logos/${workspaceId}/${file}`;
+export const draftKey = (workspaceId: string, uploadId: string) =>
+  `drafts/${workspaceId}/${uploadId}`;
+// Mail a provider pushed to us, kept until ingest has stored it properly. Under the
+// workspace, so deleting the workspace deletes it too.
+export const inboundKey = (workspaceId: string, connectionId: string, emailId: string) =>
+  `workspaces/${workspaceId}/inbound/${connectionId}/${emailId}.eml`;
+
+// Streams with bounded memory: at most queueSize parts are buffered at once.
+export async function streamToStorage(
+  key: string,
+  body: ReadableStream<Uint8Array> | Readable,
+  contentType: string,
+) {
+  await new Upload({
+    client: s3(),
+    params: {
+      Bucket: bucket(),
+      Key: key,
+      Body: body as Readable,
+      ContentType: contentType,
+    },
+    partSize: PART_SIZE,
+    queueSize: 2,
+  }).done();
+}
+
+export async function putObject(key: string, body: Uint8Array, contentType: string) {
+  await s3().send(
+    new PutObjectCommand({ Bucket: bucket(), Key: key, Body: body, ContentType: contentType }),
+  );
+}
+
+export async function objectSize(key: string) {
+  const head = await s3().send(
+    new HeadObjectCommand({ Bucket: bucket(), Key: key }),
+  );
+  return head.ContentLength ?? 0;
+}
+
+export async function deleteObject(key: string) {
+  await s3().send(new DeleteObjectCommand({ Bucket: bucket(), Key: key }));
+}
+
+export const workspacePrefixes = (workspaceId: string) => [
+  `workspaces/${workspaceId}/`,
+  `drafts/${workspaceId}/`,
+  `logos/${workspaceId}/`,
+];
+
+export async function deletePrefix(prefix: string) {
+  let token: string | undefined;
+  do {
+    const page = await s3().send(
+      new ListObjectsV2Command({ Bucket: bucket(), Prefix: prefix, ContinuationToken: token }),
+    );
+    const objects = (page.Contents ?? []).flatMap((item) => (item.Key ? [{ Key: item.Key }] : []));
+    if (objects.length) {
+      await s3().send(new DeleteObjectsCommand({ Bucket: bucket(), Delete: { Objects: objects } }));
+    }
+    token = page.NextContinuationToken;
+  } while (token);
+}
+
+// One page of keys under a prefix, oldest first by name order.
+export async function listKeys(prefix: string, next?: string) {
+  const page = await s3().send(
+    new ListObjectsV2Command({ Bucket: bucket(), Prefix: prefix, ContinuationToken: next, MaxKeys: 100 }),
+  );
+  return {
+    keys: (page.Contents ?? []).flatMap((item) => (item.Key ? [item.Key] : [])),
+    next: page.IsTruncated ? page.NextContinuationToken : undefined,
+  };
+}
+
+export async function readObject(key: string) {
+  const res = await s3().send(
+    new GetObjectCommand({ Bucket: bucket(), Key: key }),
+  );
+  if (!res.Body) throw new Error(`Empty object: ${key}`);
+  return res.Body.transformToWebStream();
+}
+
+export function signedDownloadUrl(
+  key: string,
+  filename: string,
+  contentType: string,
+) {
+  // Attachments are untrusted: always a download, with a neutral type for active content.
+  const safeName = filename.replace(/["\\\r\n]/g, "_");
+  const inlineSafe = /^(image\/(png|jpeg|gif|webp)|application\/pdf|text\/plain)$/i.test(
+    contentType,
+  );
+  return getSignedUrl(
+    s3(),
+    new GetObjectCommand({
+      Bucket: bucket(),
+      Key: key,
+      ResponseContentDisposition: `attachment; filename="${safeName}"`,
+      ResponseContentType: inlineSafe ? contentType : "application/octet-stream",
+    }),
+    { expiresIn: URL_TTL_SECONDS },
+  );
+}
+
+export function signedSendUrl(key: string) {
+  return getSignedUrl(
+    s3(),
+    new GetObjectCommand({ Bucket: bucket(), Key: key }),
+    { expiresIn: URL_TTL_SECONDS },
+  );
+}
+
+export async function startMultipartUpload(key: string, contentType: string) {
+  const res = await s3().send(
+    new CreateMultipartUploadCommand({
+      Bucket: bucket(),
+      Key: key,
+      ContentType: contentType,
+    }),
+  );
+  if (!res.UploadId) throw new Error("R2 did not return an upload id");
+  return { uploadId: res.UploadId, partSize: PART_SIZE };
+}
+
+export function signedPartUrl(key: string, uploadId: string, partNumber: number) {
+  return getSignedUrl(
+    s3(),
+    new UploadPartCommand({
+      Bucket: bucket(),
+      Key: key,
+      UploadId: uploadId,
+      PartNumber: partNumber,
+    }),
+    { expiresIn: URL_TTL_SECONDS },
+  );
+}
+
+export async function completeMultipartUpload(
+  key: string,
+  uploadId: string,
+  parts: { partNumber: number; etag: string }[],
+) {
+  await s3().send(
+    new CompleteMultipartUploadCommand({
+      Bucket: bucket(),
+      Key: key,
+      UploadId: uploadId,
+      MultipartUpload: {
+        Parts: parts.map((part) => ({
+          PartNumber: part.partNumber,
+          ETag: part.etag,
+        })),
+      },
+    }),
+  );
+}
+
+export async function abortMultipartUpload(key: string, uploadId: string) {
+  await s3().send(
+    new AbortMultipartUploadCommand({
+      Bucket: bucket(),
+      Key: key,
+      UploadId: uploadId,
+    }),
+  );
+}

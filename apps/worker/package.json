@@ -1,0 +1,26 @@
+{
+  "name": "@hellobox/worker",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bun --watch src/index.ts",
+    "start": "bun src/index.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@hellobox/config": "workspace:*",
+    "@hellobox/db": "workspace:*",
+    "@hellobox/extensions": "workspace:*",
+    "@hellobox/mail": "workspace:*",
+    "@hellobox/queue": "workspace:*",
+    "@hellobox/storage": "workspace:*",
+    "bullmq": "^6.7.1",
+    "drizzle-orm": "^0.45.4"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.4.4",
+    "@types/react": "^19.3.0",
+    "typescript": "^5"
+  }
+}

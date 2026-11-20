@@ -1,0 +1,1 @@
+ALTER TABLE "user" ADD COLUMN "show_workspace_unread" boolean DEFAULT true NOT NULL;

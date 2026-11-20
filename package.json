@@ -1,0 +1,31 @@
+{
+  "name": "hellobox",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "packageManager": "bun@1.4.2",
+  "scripts": {
+    "dev": "bun run --filter '@hellobox/web' --filter '@hellobox/worker' dev",
+    "dev:web": "bun run --filter '@hellobox/web' dev",
+    "dev:worker": "bun run --filter '@hellobox/worker' dev",
+    "build": "bun run --filter '@hellobox/web' build",
+    "lint": "bun run --filter '@hellobox/web' lint",
+    "typecheck": "bun run --filter '*' typecheck",
+    "test": "bun test packages",
+    "db:generate": "bun run --filter '@hellobox/db' generate",
+    "db:migrate": "bun --env-file=apps/web/.env.local packages/db/src/migrate.ts",
+    "db:seed": "bun --env-file=apps/web/.env.local packages/db/src/seed.ts",
+    "services:up": "docker compose -f docker/compose.yml up -d",
+    "services:down": "docker compose -f docker/compose.yml down"
+  },
+  "ignoreScripts": [
+    "sharp",
+    "unrs-resolver"
+  ],
+  "trustedDependencies": [
+    "sharp",
+    "unrs-resolver"
+  ]
+}

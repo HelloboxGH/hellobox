@@ -1,0 +1,26 @@
+# Local development services.
+services:
+  postgres:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: hellobox
+      POSTGRES_PASSWORD: hellobox
+      POSTGRES_DB: hellobox
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - postgres:/var/lib/postgresql
+
+  redis:
+    image: redis:8-alpine
+    command: ["redis-server", "--maxmemory-policy", "noeviction"]
+    ports:
+      - "127.0.0.1:6379:6379"
+
+  rspamd:
+    image: rspamd/rspamd:latest
+    ports:
+      - "127.0.0.1:11333:11333"
+
+volumes:
+  postgres:

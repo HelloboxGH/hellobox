@@ -1,0 +1,22 @@
+import extensionProxy from "@ext/proxy";
+import { NextResponse } from "next/server";
+import { signedInRedirect } from "@/core/server/signed-in";
+
+export async function proxy(request: Request) {
+  const early = await extensionProxy.before(request);
+  if (early) return early;
+
+  if (request.method !== "GET") return undefined;
+  const url = new URL(request.url);
+  const destination = await signedInRedirect(request, url);
+  if (destination) return NextResponse.redirect(new URL(destination, url));
+  const cookies = extensionProxy.cookies(request);
+  if (cookies.length === 0) return undefined;
+  const response = NextResponse.next();
+  for (const { name, value, ...options } of cookies) response.cookies.set(name, value, options);
+  return response;
+}
+
+export const config = {
+  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
+};
