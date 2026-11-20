@@ -27,7 +27,7 @@ export function ResendIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true" {...props} className={`opacity-100 ${props.className ?? ""}`}>
       <mask id={id} style={{ maskType: "alpha" }}>
-        <image href="/brand/resend-icon.png" width="24" height="24" />
+        <image href="/providers/resend-icon.png" width="24" height="24" />
       </mask>
       <rect width="24" height="24" fill="currentColor" mask={`url(#${id})`} />
     </svg>
