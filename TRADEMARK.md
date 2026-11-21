@@ -9,9 +9,9 @@ the HelloBox logo and icon, and any name or logo that looks confusingly similar.
 
 ## What you can do without asking
 
-- **Run an unmodified copy for yourself.** If you self-host HelloBox, built from our
-  releases without changes, for your own team or company, you can keep the HelloBox name
-  and logo in the app.
+- **Run it for your own organization.** If you self-host HelloBox for your own team or
+  company's internal use, modified or not, you can keep the HelloBox name and logo in the
+  app.
 - **Say what your project is based on.** "Based on HelloBox", "a fork of HelloBox" and
   "compatible with HelloBox" are fine in a README, a description or a blog post, as long
   as it is clear your project is not the official one.
@@ -23,7 +23,8 @@ the HelloBox logo and icon, and any name or logo that looks confusingly similar.
 
 - **Forks and modified versions.** If you change the code and distribute it, give your
   version its own name and its own logo, and remove the HelloBox marks from the app, the
-  package names, the domain and the repository.
+  package names, the domain and the repository. This never means removing copyright or
+  license notices; keep those as the AGPL requires.
 - **Hosted services.** If you run HelloBox as a service for other people (free or paid),
   that service needs its own name and logo, even if you run our code unmodified. The
   HelloBox name belongs to the official hosted service, HelloBox Cloud.
