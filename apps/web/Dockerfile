@@ -5,15 +5,9 @@ WORKDIR /app
 
 FROM base AS deps
 COPY package.json bun.lock ./
-COPY apps/cloud-creators/package.json ./apps/cloud-creators/
 COPY apps/web/package.json ./apps/web/
 COPY apps/worker/package.json ./apps/worker/
-COPY packages/cloud-billing/package.json ./packages/cloud-billing/
-COPY packages/cloud-db/package.json ./packages/cloud-db/
-COPY packages/cloud-demo/package.json ./packages/cloud-demo/
-COPY packages/cloud-email/package.json ./packages/cloud-email/
 COPY packages/config/package.json ./packages/config/
-COPY packages/cloud-creators-db/package.json ./packages/cloud-creators-db/
 COPY packages/db/package.json ./packages/db/
 COPY packages/email/package.json ./packages/email/
 COPY packages/extensions/package.json ./packages/extensions/

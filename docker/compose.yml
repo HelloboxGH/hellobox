@@ -1,26 +1,146 @@
-# Local development services.
+# HelloBox for production: web, worker, Postgres, Redis, rspamd and an S3-compatible object
+# store. Follow docs/self-hosting.md. Run every command from this folder, with your settings
+# in docker/.env (copy ../.env.example to start). For local development use compose.dev.yml.
+#
+# Needs Docker Compose 2.20 or newer.
+name: hellobox
+
+x-app: &app
+  restart: unless-stopped
+  # Everything in .env reaches the app. The addresses of the services below are set here,
+  # so DATABASE_URL, REDIS_URL and RSPAMD_URL don't need to be in .env.
+  env_file: .env
+  environment:
+    NODE_ENV: production
+    DATABASE_URL: postgres://hellobox:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@postgres:5432/hellobox
+    REDIS_URL: redis://:${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env}@redis:6379
+    RSPAMD_URL: http://rspamd:11333
+
 services:
+  web:
+    <<: *app
+    image: helloboxapp/hellobox-web:${HELLOBOX_VERSION:-latest}
+    # Only on this machine. Put a reverse proxy in front of it (see the guide).
+    ports:
+      - "127.0.0.1:${WEB_PORT:-3000}:3000"
+    depends_on:
+      # The worker applies database migrations before it starts, so a running worker means
+      # the database is ready for this version.
+      worker:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/robots.txt').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  worker:
+    <<: *app
+    image: helloboxapp/hellobox-worker:${HELLOBOX_VERSION:-latest}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rspamd:
+        condition: service_healthy
+      storage-init:
+        condition: service_completed_successfully
+        required: false # not there when you use your own S3
+    healthcheck:
+      # The image has no curl, and the worker has no web server, so look for its process.
+      # The migrations run before it starts. (The [x] keeps grep from matching itself.)
+      test: ["CMD-SHELL", "grep -qs 'apps/worker/src/inde[x]' /proc/[0-9]*/cmdline"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 60s
+
   postgres:
     image: postgres:18-alpine
+    restart: unless-stopped
     environment:
       POSTGRES_USER: hellobox
-      POSTGRES_PASSWORD: hellobox
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
       POSTGRES_DB: hellobox
-    ports:
-      - "127.0.0.1:5432:5432"
     volumes:
       - postgres:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hellobox -d hellobox"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
 
   redis:
     image: redis:8-alpine
-    command: ["redis-server", "--maxmemory-policy", "noeviction"]
-    ports:
-      - "127.0.0.1:6379:6379"
+    restart: unless-stopped
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env}
+      REDISCLI_AUTH: ${REDIS_PASSWORD}
+    # noeviction: the job queue must never lose a job. appendonly keeps the queue across restarts.
+    command: ["sh", "-c", "exec redis-server --requirepass \"$$REDIS_PASSWORD\" --maxmemory-policy noeviction --appendonly yes"]
+    volumes:
+      - redis:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli ping | grep -q PONG"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
 
   rspamd:
-    image: rspamd/rspamd:latest
+    image: rspamd/rspamd:4.3
+    restart: unless-stopped
+    volumes:
+      - rspamd:/var/lib/rspamd
+    healthcheck:
+      test: ["CMD-SHELL", "rspamc -h 127.0.0.1:11334 stat > /dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  # An S3-compatible store for attachments and the raw copy of every message. Skip it
+  # (remove COMPOSE_PROFILES from .env) to use AWS S3, Backblaze B2, Cloudflare R2 and so on.
+  storage:
+    profiles: ["storage"]
+    image: rustfs/rustfs:1.0.6
+    restart: unless-stopped
+    environment:
+      RUSTFS_ACCESS_KEY: ${S3_ACCESS_KEY_ID:?Set S3_ACCESS_KEY_ID in .env}
+      RUSTFS_SECRET_KEY: ${S3_SECRET_ACCESS_KEY:?Set S3_SECRET_ACCESS_KEY in .env}
+      # Browsers upload attachments straight to storage, from the app's address.
+      RUSTFS_CORS_ALLOWED_ORIGINS: ${APP_URL:?Set APP_URL in .env}
+      RUSTFS_CONSOLE_ENABLE: "false"
+    # Browsers reach it through the reverse proxy, at S3_PUBLIC_ENDPOINT. Only on this machine.
     ports:
-      - "127.0.0.1:11333:11333"
+      - "127.0.0.1:${STORAGE_PORT:-9000}:9000"
+    volumes:
+      - storage:/data
+    healthcheck:
+      test: ["CMD", "curl", "-fs", "http://127.0.0.1:9000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  # Makes the bucket once, then stops.
+  storage-init:
+    profiles: ["storage"]
+    image: rustfs/rustfs:1.0.6
+    restart: "no"
+    depends_on:
+      storage:
+        condition: service_healthy
+    environment:
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:?Set S3_ACCESS_KEY_ID in .env}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:?Set S3_SECRET_ACCESS_KEY in .env}
+      S3_BUCKET: ${S3_BUCKET:-hellobox}
+    entrypoint: ["sh", "-c", "rc alias set store http://storage:9000 \"$$S3_ACCESS_KEY_ID\" \"$$S3_SECRET_ACCESS_KEY\" && rc bucket create --ignore-existing \"store/$$S3_BUCKET\""]
 
 volumes:
   postgres:
+  redis:
+  rspamd:
+  storage:

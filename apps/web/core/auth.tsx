@@ -4,6 +4,7 @@ import { getEnv } from "@hellobox/config";
 import {
   account,
   getDb,
+  invitations,
   members,
   session,
   twoFactor as twoFactorTable,
@@ -28,7 +29,8 @@ import { generateRandomString } from "better-auth/crypto";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { nextCookies } from "better-auth/next-js";
 import { twoFactor } from "better-auth/plugins";
-import { and, eq, inArray } from "drizzle-orm";
+import { mayCreateAccount, SIGNUPS_CLOSED_MESSAGE } from "@/core/signups";
+import { and, eq, gt, inArray, isNull, sql } from "drizzle-orm";
 import Redis from "ioredis";
 import { removeStoredAvatar } from "@/core/server/avatar-store";
 
@@ -98,6 +100,19 @@ async function challengeTwoFactor(ctx: HookContext) {
   });
   await ctx.setSignedCookie(cookie.name, identifier, ctx.context.secret, cookie.attributes);
   throw ctx.redirect(`${getEnv().APP_URL}/login?step=2fa`);
+}
+
+// ALLOW_SIGNUPS=false: new accounts only for admins and people with an invitation.
+async function assertMayCreateAccount(email: string) {
+  const allowed = await mayCreateAccount(email, async (address) => {
+    const [open] = await getDb()
+      .select({ id: invitations.id })
+      .from(invitations)
+      .where(and(sql`lower(${invitations.email}) = ${address}`, isNull(invitations.acceptedAt), gt(invitations.expiresAt, new Date())))
+      .limit(1);
+    return Boolean(open);
+  });
+  if (!allowed) throw new APIError("FORBIDDEN", { message: SIGNUPS_CLOSED_MESSAGE });
 }
 
 function create() {
@@ -202,6 +217,8 @@ function create() {
     },
     hooks: {
       before: createAuthMiddleware(async (ctx) => {
+        // Said out loud here: a refusal inside the user hook comes back as a fake success.
+        if (ctx.path === "/sign-up/email" && typeof ctx.body?.email === "string") await assertMayCreateAccount(ctx.body.email);
         if (SENSITIVE_PATHS.has(ctx.path) && !ctx.body?.password) {
           await requireRecentSignIn(ctx);
           return;
@@ -286,6 +303,9 @@ function create() {
     databaseHooks: {
       user: {
         create: {
+          before: async (created) => {
+            await assertMayCreateAccount(created.email);
+          },
           // Every account starts with a personal workspace.
           after: async (created, ctx) => {
             // Cloud acts on the new account first (creator credit, where they heard about us)

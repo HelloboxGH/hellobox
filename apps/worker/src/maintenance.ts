@@ -7,6 +7,7 @@ import {
   uploads,
   workspaces,
 } from "@hellobox/db";
+import { isStorageConfigured } from "@hellobox/config";
 import { entitlementsFor, getExtensions } from "@hellobox/extensions";
 import { activatePendingPostmarkInbound, completeDueTakeovers, markIfRoleRevoked, providerFor, syncDomains, workspacesWithPendingContacts } from "@hellobox/mail";
 import { abortMultipartUpload, deleteObject, deletePrefix, objectSize, workspacePrefixes } from "@hellobox/storage";
@@ -93,7 +94,7 @@ async function cleanAbandonedUploads() {
 }
 
 export async function purgeWorkspaceFiles(workspaceId: string) {
-  if (!process.env.R2_BUCKET) return;
+  if (!isStorageConfigured()) return;
   await Promise.all(workspacePrefixes(workspaceId).map(deletePrefix));
 }
 
@@ -175,7 +176,7 @@ export async function runMaintenance(
   await completeDueTakeovers().catch((error) => console.error("[maintenance] Couldn't finish domain claims:", error));
   const pending = await workspacesWithPendingContacts();
   await Promise.all(pending.map((workspaceId) => enqueueContactSync(workspaceId)));
-  if (process.env.R2_BUCKET) {
+  if (isStorageConfigured()) {
     await purgeOldThreads();
     await cleanAbandonedUploads();
     await countOldRawFiles();

@@ -1,3 +1,5 @@
 # HelloBox docs
 
-Self-hosting and contributing guides will live here.
+- [Self-hosting](self-hosting.md): run HelloBox on your own server with Docker Compose.
+
+Contributing guides will live here too.

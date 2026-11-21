@@ -14,27 +14,41 @@ import {
 } from "@aws-sdk/client-s3";
 import { Upload } from "@aws-sdk/lib-storage";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
-import { getR2Env } from "@hellobox/config";
+import { getStorageEnv } from "@hellobox/config";
 
 const PART_SIZE = 8 * 1024 * 1024;
 const URL_TTL_SECONDS = 15 * 60;
 
 let client: S3Client | undefined;
+let signer: S3Client | undefined;
+
+function makeClient(endpoint: string | undefined, signing = false) {
+  const env = getStorageEnv();
+  return new S3Client({
+    region: env.region,
+    endpoint,
+    forcePathStyle: env.forcePathStyle,
+    // Signed links are filled in later by a browser. By default the SDK writes the checksum
+    // of an empty body into an upload link, and a strict S3 server then rejects the part.
+    // R2 never minded, so its links stay as they were.
+    ...(signing && env.kind === "s3" ? { requestChecksumCalculation: "WHEN_REQUIRED" as const } : {}),
+    credentials: { accessKeyId: env.accessKeyId, secretAccessKey: env.secretAccessKey },
+  });
+}
 
 function s3() {
-  const env = getR2Env();
-  client ??= new S3Client({
-    region: "auto",
-    endpoint: `https://${env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
-    credentials: {
-      accessKeyId: env.R2_ACCESS_KEY_ID,
-      secretAccessKey: env.R2_SECRET_ACCESS_KEY,
-    },
-  });
+  client ??= makeClient(getStorageEnv().endpoint);
   return client;
 }
 
-const bucket = () => getR2Env().R2_BUCKET;
+// Signing doesn't touch the network, so links can name an address the server itself can't
+// reach (the one browsers use), while reads and writes use the internal one.
+function presigner() {
+  signer ??= makeClient(getStorageEnv().publicEndpoint ?? getStorageEnv().endpoint, true);
+  return signer;
+}
+
+const bucket = () => getStorageEnv().bucket;
 
 export const messageKey = (workspaceId: string, messageId: string, id: string) =>
   `workspaces/${workspaceId}/messages/${messageId}/${id}`;
@@ -135,7 +149,7 @@ export function signedDownloadUrl(
     contentType,
   );
   return getSignedUrl(
-    s3(),
+    presigner(),
     new GetObjectCommand({
       Bucket: bucket(),
       Key: key,
@@ -148,7 +162,7 @@ export function signedDownloadUrl(
 
 export function signedSendUrl(key: string) {
   return getSignedUrl(
-    s3(),
+    presigner(),
     new GetObjectCommand({ Bucket: bucket(), Key: key }),
     { expiresIn: URL_TTL_SECONDS },
   );
@@ -162,13 +176,13 @@ export async function startMultipartUpload(key: string, contentType: string) {
       ContentType: contentType,
     }),
   );
-  if (!res.UploadId) throw new Error("R2 did not return an upload id");
+  if (!res.UploadId) throw new Error("The storage server did not return an upload id");
   return { uploadId: res.UploadId, partSize: PART_SIZE };
 }
 
 export function signedPartUrl(key: string, uploadId: string, partNumber: number) {
   return getSignedUrl(
-    s3(),
+    presigner(),
     new UploadPartCommand({
       Bucket: bucket(),
       Key: key,

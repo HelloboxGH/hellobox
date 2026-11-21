@@ -1,5 +1,6 @@
 import { render } from "@react-email/render";
 import type { ReactElement } from "react";
+import { sendViaSmtp, smtpTransport } from "./smtp";
 
 export { default as AccountDeleted } from "./templates/account-deleted";
 export {
@@ -22,20 +23,28 @@ export function defaultReplyTo(from: string, domain = process.env.REPLY_TO_DOMAI
   return host && user ? `${user}@${host}` : undefined;
 }
 
-// Product emails use this instance's own Resend key, never a customer's connection. EMAIL_FROM
-// is a verified sender on that account, such as `HelloBox <hello@example.com>`.
+// Product emails (verification links, password resets, invitations) use this instance's own
+// account, never a customer's connection. Either an SMTP server (SMTP_URL) or a Resend API key
+// (RESEND_API_KEY); SMTP wins when both are set. EMAIL_FROM is the sender, such as
+// `HelloBox <hello@example.com>`, on a domain the sender is allowed to use.
 export async function sendAppEmail(input: { to: string; subject: string; react: ReactElement; replyTo?: string }) {
   const [html, text] = await Promise.all([render(input.react), render(input.react, { plainText: true })]);
+  const smtpUrl = process.env.SMTP_URL?.trim();
   const apiKey = process.env.RESEND_API_KEY;
-  if (!apiKey) {
+  if (!smtpUrl && !apiKey) {
     if (process.env.NODE_ENV === "production") {
-      throw new Error("RESEND_API_KEY is required in production");
+      throw new Error("SMTP_URL or RESEND_API_KEY is required in production");
     }
     console.info(`[email] to=${input.to} subject=${input.subject}\n${text}`);
     return;
   }
   const from = process.env.EMAIL_FROM;
-  if (!from) throw new Error("EMAIL_FROM is required when RESEND_API_KEY is set");
+  if (!from) throw new Error(`EMAIL_FROM is required when ${smtpUrl ? "SMTP_URL" : "RESEND_API_KEY"} is set`);
+  const replyTo = input.replyTo ?? defaultReplyTo(from);
+  if (smtpUrl) {
+    await sendViaSmtp({ from, to: input.to, replyTo, subject: input.subject, html, text }, smtpTransport(smtpUrl));
+    return;
+  }
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: {
@@ -43,7 +52,7 @@ export async function sendAppEmail(input: { to: string; subject: string; react: 
       "Content-Type": "application/json",
       "User-Agent": "hellobox/1.0",
     },
-    body: JSON.stringify({ from, to: input.to, reply_to: input.replyTo ?? defaultReplyTo(from), subject: input.subject, html, text }),
+    body: JSON.stringify({ from, to: input.to, reply_to: replyTo, subject: input.subject, html, text }),
   });
   if (!res.ok) throw new Error(`Could not send email: ${res.status}`);
 }

@@ -14,15 +14,17 @@
     "preview": "email dev --dir src/templates --port 3020"
   },
   "dependencies": {
+    "@hellobox/config": "workspace:*",
     "@react-email/components": "^1.0.12",
     "@react-email/render": "^2.2.0",
-    "@hellobox/config": "workspace:*",
+    "nodemailer": "^10.6.1",
     "react": "19.3.0",
     "react-dom": "19.3.0"
   },
   "devDependencies": {
     "@types/bun": "^1.4.4",
     "@types/node": "^26.6.6",
+    "@types/nodemailer": "^8.0.2",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "react-email": "^6.11.8",
