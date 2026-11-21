@@ -1,0 +1,190 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >-
+  Connects this AWS account to HelloBox. Creates a role that only HelloBox can assume,
+  and only with this connection's external ID. Delete the stack to disconnect.
+
+Parameters:
+  ConnectionId:
+    Type: String
+    Description: Identifies this connection in HelloBox.
+  ExternalId:
+    Type: String
+    Description: Required by the role's trust policy, so no one else can make HelloBox use it.
+  ConnectToken:
+    Type: String
+    Description: One-time proof that this stack belongs to your HelloBox workspace.
+  CallbackUrl:
+    Type: String
+    Description: Where the stack reports the new role to HelloBox.
+  HelloboxAccountId:
+    Type: String
+    AllowedPattern: "\\d{12}"
+    Description: The AWS account HelloBox runs in.
+  ManageRoute53:
+    Type: String
+    AllowedValues: ["true", "false"]
+    Default: "false"
+    Description: Let HelloBox add DNS records to your Route 53 zones.
+
+Conditions:
+  WithRoute53: !Equals [!Ref ManageRoute53, "true"]
+
+Resources:
+  HelloboxRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Path: /hellobox/
+      Description: Lets HelloBox send and receive mail with SES in this account.
+      MaxSessionDuration: 3600
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !Sub arn:aws:iam::${HelloboxAccountId}:root
+            Action: sts:AssumeRole
+            Condition:
+              StringEquals:
+                sts:ExternalId: !Ref ExternalId
+      Policies:
+        - PolicyName: hellobox
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: SesSendingAndDomains
+                Effect: Allow
+                Action:
+                  - ses:CreateEmailIdentity
+                  - ses:GetEmailIdentity
+                  - ses:PutEmailIdentityMailFromAttributes
+                  - ses:ListEmailIdentities
+                  - ses:SendEmail
+                  - ses:SendRawEmail
+                  - ses:GetAccount
+                  - ses:PutAccountDetails
+                  - ses:CreateConfigurationSet
+                  - ses:CreateConfigurationSetEventDestination
+                  - ses:UpdateConfigurationSetEventDestination
+                Resource: "*"
+              - Sid: SesReceiving
+                Effect: Allow
+                Action:
+                  - ses:DescribeActiveReceiptRuleSet
+                  - ses:CreateReceiptRuleSet
+                  - ses:SetActiveReceiptRuleSet
+                  - ses:DescribeReceiptRule
+                  - ses:CreateReceiptRule
+                  - ses:UpdateReceiptRule
+                  - ses:DeleteReceiptRule
+                Resource: "*"
+              - Sid: NotificationTopics
+                Effect: Allow
+                Action:
+                  - sns:CreateTopic
+                  - sns:SetTopicAttributes
+                  - sns:Subscribe
+                Resource: !Sub arn:aws:sns:*:${AWS::AccountId}:hellobox-*
+              - Sid: InboundBucket
+                Effect: Allow
+                Action:
+                  - s3:CreateBucket
+                  - s3:PutBucketPolicy
+                  - s3:PutBucketPublicAccessBlock
+                  - s3:PutLifecycleConfiguration
+                  - s3:ListBucket
+                Resource: arn:aws:s3:::hellobox-inbound-*
+              - Sid: InboundMail
+                Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:DeleteObject
+                Resource: arn:aws:s3:::hellobox-inbound-*/inbound/*
+              - !If
+                - WithRoute53
+                - Sid: Route53Records
+                  Effect: Allow
+                  Action:
+                    - route53:ListHostedZonesByName
+                    - route53:ListResourceRecordSets
+                    - route53:ChangeResourceRecordSets
+                  Resource: "*"
+                - !Ref AWS::NoValue
+
+  # Reports the role to HelloBox when the stack is created, and again when it's deleted.
+  CallbackRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+
+  CallbackFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: Tells HelloBox about this connection.
+      Runtime: python3.12
+      Handler: index.handler
+      Timeout: 30
+      Role: !GetAtt CallbackRole.Arn
+      Code:
+        ZipFile: |
+          import json
+          import urllib.request
+
+          def respond(event, context, status, reason=""):
+              body = json.dumps({
+                  "Status": status,
+                  "Reason": reason or "See the function's logs",
+                  "PhysicalResourceId": event.get("PhysicalResourceId") or "hellobox-connection",
+                  "StackId": event["StackId"],
+                  "RequestId": event["RequestId"],
+                  "LogicalResourceId": event["LogicalResourceId"],
+              }).encode()
+              request = urllib.request.Request(event["ResponseURL"], data=body, method="PUT",
+                                               headers={"Content-Type": ""})
+              urllib.request.urlopen(request, timeout=10)
+
+          def handler(event, context):
+              props = event["ResourceProperties"]
+              payload = json.dumps({
+                  "requestType": event["RequestType"],
+                  "connectionId": props["ConnectionId"],
+                  "connectToken": props["ConnectToken"],
+                  "roleArn": props["RoleArn"],
+                  "accountId": props["AccountId"],
+                  "region": props["Region"],
+              }).encode()
+              try:
+                  # Bot protection in front of HelloBox blocks Python's default user agent.
+                  request = urllib.request.Request(props["CallbackUrl"], data=payload, method="POST",
+                                                   headers={"Content-Type": "application/json",
+                                                            "User-Agent": "HelloBox-Connect/1.0 (CloudFormation)"})
+                  urllib.request.urlopen(request, timeout=15)
+              except Exception as error:
+                  print(f"HelloBox callback failed: {error}")
+                  # Deleting must never get stuck on HelloBox being unreachable.
+                  if event["RequestType"] != "Delete":
+                      respond(event, context, "FAILED", "HelloBox didn't accept the connection. Try connecting again.")
+                      return
+              respond(event, context, "SUCCESS")
+
+  Connection:
+    Type: Custom::HelloboxConnection
+    Properties:
+      ServiceToken: !GetAtt CallbackFunction.Arn
+      ConnectionId: !Ref ConnectionId
+      ConnectToken: !Ref ConnectToken
+      CallbackUrl: !Ref CallbackUrl
+      RoleArn: !GetAtt HelloboxRole.Arn
+      AccountId: !Ref AWS::AccountId
+      Region: !Ref AWS::Region
+
+Outputs:
+  RoleArn:
+    Value: !GetAtt HelloboxRole.Arn

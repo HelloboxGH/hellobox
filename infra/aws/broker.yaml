@@ -1,0 +1,80 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >-
+  HelloBox broker. Deploy once, in HelloBox's own AWS account. Customer roles trust this
+  account, and the bucket hosts the templates that customers launch. No mail passes here.
+
+Resources:
+  # Serves the customer templates. CloudFormation quick-create links only accept S3 URLs.
+  TemplatesBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub hellobox-templates-${AWS::AccountId}
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerEnforced
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        IgnorePublicAcls: true
+        BlockPublicPolicy: false
+        RestrictPublicBuckets: false
+      VersioningConfiguration:
+        Status: Enabled
+
+  TemplatesBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref TemplatesBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: PublicReadTemplates
+            Effect: Allow
+            Principal: "*"
+            Action: s3:GetObject
+            Resource: !Sub ${TemplatesBucket.Arn}/templates/*
+
+  # The identity the app runs as. It can do one thing: assume a customer's HelloBox role,
+  # which only works with that customer's external ID.
+  BrokerUser:
+    Type: AWS::IAM::User
+    Properties:
+      UserName: hellobox-broker
+      Policies:
+        - PolicyName: assume-customer-roles
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: sts:AssumeRole
+                Resource: arn:aws:iam::*:role/hellobox/*
+
+  # Only the deploy script writes templates, so it gets its own narrow user.
+  TemplatePublisher:
+    Type: AWS::IAM::User
+    Properties:
+      UserName: hellobox-template-publisher
+      Policies:
+        - PolicyName: publish-templates
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: s3:PutObject
+                Resource: !Sub ${TemplatesBucket.Arn}/templates/*
+              - Effect: Allow
+                Action: cloudformation:ValidateTemplate
+                Resource: "*"
+
+Outputs:
+  BrokerAccountId:
+    Description: AWS_BROKER_ACCOUNT_ID
+    Value: !Ref AWS::AccountId
+  BrokerUserArn:
+    Description: Create an access key for this user and set AWS_BROKER_ACCESS_KEY_ID and AWS_BROKER_SECRET_ACCESS_KEY
+    Value: !GetAtt BrokerUser.Arn
+  TemplatesBucket:
+    Description: AWS_TEMPLATES_BUCKET
+    Value: !Ref TemplatesBucket
+  TemplatesBaseUrl:
+    Description: AWS_TEMPLATES_BASE_URL
+    Value: !Sub https://${TemplatesBucket}.s3.${AWS::Region}.amazonaws.com/templates
