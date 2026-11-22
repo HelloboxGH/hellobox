@@ -611,8 +611,13 @@ textarea,
 }
 
 /* Label colors (components/mail/label-style.tsx). The label sets the variables. */
+/* A label's icon on its own (sidebar, menus) shows the label's own color. The darker
+   text shade is only for text, and for icons inside a chip, which sit on a tint. */
 .label-tint {
-  color: var(--label-text);
+  color: var(--label-swatch);
+}
+.label-chip .label-tint {
+  color: inherit;
 }
 .dark .label-tint {
   color: var(--label-text-dark);

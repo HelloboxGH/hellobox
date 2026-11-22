@@ -1,0 +1,67 @@
+name: Report a bug
+description: Something in HelloBox doesn't work the way it should.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. A security problem goes in private instead: see SECURITY.md.
+        Stuck setting up? [Troubleshooting](https://github.com/HelloboxGH/hellobox/blob/main/docs/self-hosting/troubleshooting.md) covers the common problems, and Discussions is the place to ask.
+
+        **Remove secrets before you post:** passwords, API keys, tokens and your `.env`. If a log line shows one, replace it with `***`.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, step by step, and what happened.
+      placeholder: |
+        1. Opened Settings → Domains
+        2. Pressed Check again on example.com
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+  - type: dropdown
+    id: where
+    attributes:
+      label: Where you run HelloBox
+      options:
+        - Self-hosted
+        - HelloBox Cloud (hellobox.app)
+        - Running the code locally
+    validations:
+      required: true
+  - type: dropdown
+    id: provider
+    attributes:
+      label: Email provider
+      description: If the bug involves sending or receiving.
+      multiple: true
+      options:
+        - Amazon SES
+        - Resend
+        - Postmark
+        - Mailgun
+        - Not related to a provider
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Self-hosted? Run `git describe --tags` in the hellobox folder, or check HELLOBOX_VERSION in your .env.
+      placeholder: "2026.11.1"
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: The last lines of the part that fails, for example `docker compose logs worker --tail 100`. Remove secrets first.
+      render: text
+  - type: textarea
+    id: more
+    attributes:
+      label: Anything else
+      description: Browser, screenshots, how often it happens.

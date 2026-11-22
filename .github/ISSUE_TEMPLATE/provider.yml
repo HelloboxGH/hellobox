@@ -1,0 +1,34 @@
+name: Request a provider
+description: You send email with a service HelloBox doesn't connect to yet.
+labels: ["provider request"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        HelloBox works with Amazon SES, Resend, Postmark and Mailgun. Tell us which one to add next.
+        Search the open issues first: if someone already asked, add a 👍 to theirs instead.
+  - type: input
+    id: provider
+    attributes:
+      label: Provider
+      placeholder: "SendGrid"
+    validations:
+      required: true
+  - type: textarea
+    id: use
+    attributes:
+      label: How you use it
+      description: What you send with it (replies, notifications, campaigns), and roughly how much.
+    validations:
+      required: true
+  - type: textarea
+    id: receiving
+    attributes:
+      label: Receiving
+      description: Does it receive mail (inbound webhooks, routes)? A link to its docs helps.
+  - type: checkboxes
+    id: build
+    attributes:
+      label: Building it
+      options:
+        - label: I'd like to build it myself. (Read CONTRIBUTING.md first; we'll point you at each piece.)

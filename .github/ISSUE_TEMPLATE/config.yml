@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Ask a question or share an idea
+    url: https://github.com/HelloboxGH/hellobox/discussions
+    about: Setup help, "is this normal?", and ideas for new features go to Discussions.
+  - name: Report a security problem
+    url: https://github.com/HelloboxGH/hellobox/security/advisories/new
+    about: Privately, never in a public issue. SECURITY.md explains how.
+  - name: HelloBox Cloud support
+    url: https://hellobox.app
+    about: A problem with your account at hellobox.app? Write to us from the app.
