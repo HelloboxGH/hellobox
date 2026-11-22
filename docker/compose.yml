@@ -1,5 +1,5 @@
 # HelloBox for production: web, worker, Postgres, Redis, rspamd and an S3-compatible object
-# store. Follow docs/self-hosting.md. Run every command from this folder, with your settings
+# store. Follow docs/self-hosting/. Run every command from this folder, with your settings
 # in docker/.env (copy ../.env.example to start). For local development use compose.dev.yml.
 #
 # Needs Docker Compose 2.20 or newer.

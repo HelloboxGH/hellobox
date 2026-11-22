@@ -1,0 +1,33 @@
+{
+  "name": "@hellobox/docs",
+  "version": "0.0.1",
+  "private": true,
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "scripts": {
+    "content": "bun scripts/content.ts",
+    "dev": "bun scripts/content.ts && next dev -H 127.0.0.1 -p 3030",
+    "build": "bun scripts/content.ts && next build",
+    "typecheck": "bun scripts/content.ts && fumadocs-mdx && tsc --noEmit",
+    "lint": "eslint"
+  },
+  "devDependencies": {
+    "@hellobox/eslint-config": "workspace:*",
+    "@tailwindcss/turbopack": "^4",
+    "@types/bun": "^1.4.4",
+    "@types/mdx": "^2",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.4.5",
+    "fumadocs-core": "^16.19.6",
+    "fumadocs-mdx": "^15.6.4",
+    "fumadocs-ui": "npm:@fumadocs/base-ui@^16.19.6",
+    "next": "16.4.5",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  }
+}

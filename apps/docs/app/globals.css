@@ -1,0 +1,19 @@
+@import "tailwindcss";
+@import "fumadocs-ui/css/neutral.css";
+@import "fumadocs-ui/css/preset.css";
+
+/* HelloBox's look (apps/web/app/globals.css): neutral greys, the violet brand color for
+   links, focus and the current page, Inter and Geist Mono. */
+@theme {
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+  --color-fd-primary: oklch(0.55 0.13 277);
+  --color-fd-primary-foreground: oklch(0.985 0 0);
+  --color-fd-ring: oklch(0.55 0.13 277);
+}
+
+.dark {
+  --color-fd-primary: oklch(0.76 0.1 277);
+  --color-fd-primary-foreground: oklch(0.2 0.03 277);
+  --color-fd-ring: oklch(0.76 0.1 277);
+}

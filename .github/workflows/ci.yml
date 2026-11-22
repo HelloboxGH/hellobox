@@ -34,3 +34,5 @@ jobs:
       - run: bun run lint
       - run: bun test packages apps
       - run: bun run build
+      # The docs site (docs.hellobox.app): a static export of docs/ and CONTRIBUTING.md.
+      - run: bun run --filter '@hellobox/docs' build

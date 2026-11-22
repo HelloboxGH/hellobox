@@ -2,7 +2,7 @@
 
 Thanks for helping. This page covers how to run HelloBox locally, what we accept, and what
 happens to your pull request. How the code, copy and commits should look is in
-[docs/CONVENTIONS.md](docs/CONVENTIONS.md); read it before your first pull request.
+[the conventions](docs/CONVENTIONS.md); read it before your first pull request.
 
 ## Before you start
 
@@ -21,7 +21,8 @@ HelloBox is open source and also runs as a hosted service. A few features exist 
 hosted version: single sign-on, audit logs, billing and plans, and the marketing site. Pull
 requests that rebuild those aren't accepted. That's a policy, not a judgement of the work.
 Everything else is open, including every provider, shared mailboxes, rules, campaigns, the
-MCP server and the instance admin tool.
+MCP server and the instance admin tool. New hosted-only features may come later, but an
+open feature stays open: we won't move an existing public feature into the hosted version.
 
 ## Run it locally
 
