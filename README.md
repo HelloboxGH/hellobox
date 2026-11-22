@@ -4,6 +4,7 @@
 
 <h1 align="center">HelloBox</h1>
 
+
 <p align="center">
   An open-source shared inbox for Amazon SES, Resend, Postmark and Mailgun.<br>
   Read, assign and answer your team's email through your own provider account. Self-host it with Docker, or use HelloBox Cloud.
