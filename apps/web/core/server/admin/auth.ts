@@ -1,5 +1,5 @@
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
-import { parseAdminEmails } from "@hellobox/config";
+import { parseAdminEmails, setting } from "@hellobox/config";
 
 export const ADMIN_SESSION_HOURS = 12;
 export const AUTH_CODE_SECONDS = 120;
@@ -10,7 +10,7 @@ const TOKEN_PREFIX = "rbx_admin_";
 
 // Admins are listed by email, so access goes with the address and not a database
 // flag someone could set. Unset means nobody is an admin.
-export function adminEmails(value = process.env.ADMIN_EMAILS) {
+export function adminEmails(value = setting("ADMIN_EMAILS")) {
   return new Set(parseAdminEmails(value));
 }
 

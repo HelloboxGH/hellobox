@@ -1,6 +1,6 @@
 import { getExtensions } from "@/core/extensions";
 import { suspendedMessage } from "@/core/server/support";
-import { getEnv } from "@hellobox/config";
+import { getEnv, setting } from "@hellobox/config";
 import {
   account,
   getDb,
@@ -119,29 +119,21 @@ function create() {
   const env = getEnv();
   const providerCallbackPaths = new Set([...PROVIDER_CALLBACK_PATHS, ...(getExtensions().auth?.providerCallbackPaths ?? [])]);
   const redis = new Redis(env.REDIS_URL);
+  const google = { clientId: setting("GOOGLE_CLIENT_ID"), clientSecret: setting("GOOGLE_CLIENT_SECRET") };
+  const github = { clientId: setting("GITHUB_CLIENT_ID"), clientSecret: setting("GITHUB_CLIENT_SECRET") };
   const socialProviders = {
-    ...(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET
-      ? {
-          google: {
-            clientId: process.env.GOOGLE_CLIENT_ID,
-            clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-          },
-        }
+    ...(google.clientId && google.clientSecret
+      ? { google: { clientId: google.clientId, clientSecret: google.clientSecret } }
       : {}),
-    ...(process.env.GITHUB_CLIENT_ID && process.env.GITHUB_CLIENT_SECRET
-      ? {
-          github: {
-            clientId: process.env.GITHUB_CLIENT_ID,
-            clientSecret: process.env.GITHUB_CLIENT_SECRET,
-          },
-        }
+    ...(github.clientId && github.clientSecret
+      ? { github: { clientId: github.clientId, clientSecret: github.clientSecret } }
       : {}),
   };
 
   return betterAuth({
     appName: "HelloBox",
     baseURL: env.APP_URL,
-    secret: process.env.BETTER_AUTH_SECRET,
+    secret: setting("BETTER_AUTH_SECRET"),
     // Development can run on any local port or either loopback name.
     trustedOrigins:
       env.NODE_ENV === "production"

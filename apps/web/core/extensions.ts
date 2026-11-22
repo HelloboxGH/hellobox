@@ -1,5 +1,6 @@
 import "server-only";
 import cloud from "@ext/server";
+import { setting } from "@hellobox/config";
 import { assertCloudBuild, getExtensions, install } from "@hellobox/extensions";
 
 // The only web file that imports @ext/server. Import this (or something that does) before
@@ -7,6 +8,6 @@ import { assertCloudBuild, getExtensions, install } from "@hellobox/extensions";
 install(cloud);
 // Cloud deploys set HELLOBOX_CLOUD=1 and register billing; a deploy that installed the open
 // stubs would run with every workspace unlimited.
-assertCloudBuild(process.env, Boolean(getExtensions().billing));
+assertCloudBuild({ HELLOBOX_CLOUD: setting("HELLOBOX_CLOUD") }, Boolean(getExtensions().billing));
 
 export { getExtensions };

@@ -2,6 +2,7 @@ import { lookup as dnsLookup, type LookupAddress } from "node:dns";
 import { request as httpRequest } from "node:http";
 import { request as httpsRequest } from "node:https";
 import { BlockList, isIP, type LookupFunction } from "node:net";
+import { isProduction } from "@hellobox/config";
 
 // URLs people give us (AI endpoints, webhooks, ntfy servers) are called by our servers.
 // These checks keep those calls away from anything on our own network.
@@ -57,7 +58,7 @@ export function isBlockedAddress(address: string) {
   return blocked.check(address, family === 4 ? "ipv4" : "ipv6");
 }
 
-const allowsLocal = () => process.env.NODE_ENV !== "production";
+const allowsLocal = () => !isProduction();
 
 // Checked as the connection opens, so a host can't pass a check and then change its DNS.
 export const guardedLookup = ((hostname, options, callback) => {

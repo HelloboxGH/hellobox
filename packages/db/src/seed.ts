@@ -1,3 +1,4 @@
+import { setting } from "@hellobox/config";
 // Fills a local database with a demo workspace to click around in.
 //
 //   bun run db:seed                 # for the first account in the database
@@ -17,7 +18,7 @@ import postgres from "postgres";
 import { createDemoWorkspace } from "./demo";
 import * as schema from "./schema";
 
-const url = process.env.DATABASE_URL;
+const url = setting("DATABASE_URL");
 if (!url) throw new Error("DATABASE_URL is required");
 if (!/@(localhost|127\.0\.0\.1|\[::1\]|postgres|db)(:\d+)?\//.test(url) && !process.argv.includes("--force")) {
   throw new Error("This isn't a local database. Pass --force if you really mean it");

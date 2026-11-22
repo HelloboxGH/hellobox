@@ -1,3 +1,5 @@
+import { isProduction } from "@hellobox/config";
+
 import { escapeHtml } from "@hellobox/mail";
 import { AppError } from "nezt";
 import { z } from "zod";
@@ -663,7 +665,7 @@ function summarizeThreads(result: Awaited<ReturnType<AgentActions["/threads/list
 const PLAN_NAMES = { starter: "Starter", team: "Team", business: "Business" } as const;
 
 // Billing errors say what to do next, since the agent can't click through to billing.
-export function describeToolError(error: unknown, production = process.env.NODE_ENV === "production") {
+export function describeToolError(error: unknown, production = isProduction()) {
   if (!(error instanceof AppError)) {
     if (error instanceof z.ZodError) return { code: "VALIDATION_ERROR", message: z.prettifyError(error) };
     return {

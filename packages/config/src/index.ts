@@ -157,7 +157,61 @@ export function decrypt(sealed: string): string {
   ]).toString("utf8");
 }
 
+/**
+ * A reader for a fixed list of settings. This package is the only place that reads
+ * process.env (lint enforces it), so every setting the code reads has a name in a list. An
+ * empty value counts as unset. Values are read on each call, never cached, so tests can
+ * change them.
+ */
+export function defineSettings<const Name extends string>(names: readonly Name[]) {
+  const known = new Set<string>(names);
+  return (name: Name): string | undefined => {
+    if (!known.has(name)) throw new Error(`${name} isn't a known setting`);
+    const value = process.env[name];
+    return value === "" ? undefined : value;
+  };
+}
+
+/** Optional settings the open code reads. Required ones are validated by getEnv() above. */
+export const SETTINGS = [
+  "APP_URL",
+  "DATABASE_URL",
+  "REDIS_URL",
+  "HELLOBOX_CLOUD",
+  "ADMIN_EMAILS",
+  "ADMIN_DIGEST_TIMEZONE",
+  "ALLOW_SIGNUPS",
+  "SUPPORT_EMAIL",
+  "BETTER_AUTH_SECRET",
+  "GOOGLE_CLIENT_ID",
+  "GOOGLE_CLIENT_SECRET",
+  "GITHUB_CLIENT_ID",
+  "GITHUB_CLIENT_SECRET",
+  "SMTP_URL",
+  "RESEND_API_KEY",
+  "EMAIL_FROM",
+  "REPLY_TO_DOMAIN",
+  "TELEGRAM_BOT_TOKEN",
+  "TELEGRAM_BOT_USERNAME",
+  "TELEGRAM_WEBHOOK_SECRET",
+  "VAPID_PUBLIC_KEY",
+  "VAPID_PRIVATE_KEY",
+  "VAPID_SUBJECT",
+  "NTFY_URL",
+  "NTFY_TOKEN",
+  "DISCORD_CLIENT_ID",
+  "DISCORD_CLIENT_SECRET",
+  "SLACK_CLIENT_ID",
+  "SLACK_CLIENT_SECRET",
+] as const;
+export type Setting = (typeof SETTINGS)[number];
+export const setting = defineSettings(SETTINGS);
+
+/** Production mode. Browser code reads process.env.NODE_ENV itself: Next.js inlines it. */
+export const isProduction = () => process.env.NODE_ENV === "production";
+export const isDevelopment = () => process.env.NODE_ENV === "development";
+
 // Platform admins are listed by email in ADMIN_EMAILS. Unset means nobody is an admin.
-export function parseAdminEmails(value = process.env.ADMIN_EMAILS) {
+export function parseAdminEmails(value = setting("ADMIN_EMAILS")) {
   return [...new Set((value ?? "").split(",").map((email) => email.trim().toLowerCase()).filter(Boolean))];
 }

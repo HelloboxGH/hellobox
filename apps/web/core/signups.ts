@@ -1,9 +1,9 @@
-import { parseAdminEmails } from "@hellobox/config";
+import { parseAdminEmails, setting } from "@hellobox/config";
 
 // ALLOW_SIGNUPS=false closes registration. A new account is then only made for an instance
 // admin (an address in ADMIN_EMAILS) or for someone with an open workspace invitation.
 // Anyone who already has an account signs in as usual.
-export const signupsClosed = (value = process.env.ALLOW_SIGNUPS) => value?.trim().toLowerCase() === "false";
+export const signupsClosed = (value = setting("ALLOW_SIGNUPS")) => value?.trim().toLowerCase() === "false";
 
 export async function mayCreateAccount(
   email: string,

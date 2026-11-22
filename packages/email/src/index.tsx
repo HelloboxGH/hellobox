@@ -1,4 +1,5 @@
 import { render } from "@react-email/render";
+import { isProduction, setting } from "@hellobox/config";
 import type { ReactElement } from "react";
 import { sendViaSmtp, smtpTransport } from "./smtp";
 
@@ -17,7 +18,7 @@ export { default as Welcome } from "./templates/welcome";
 export { default as WorkspaceInvite } from "./templates/workspace-invite";
 
 /** The reply address: the sender's username on REPLY_TO_DOMAIN, or nothing without it. */
-export function defaultReplyTo(from: string, domain = process.env.REPLY_TO_DOMAIN): string | undefined {
+export function defaultReplyTo(from: string, domain = setting("REPLY_TO_DOMAIN")): string | undefined {
   const host = domain?.trim().replace(/^@/, "");
   const user = /<?([^<>\s@]+)@[^<>\s@]+>?\s*$/.exec(from)?.[1];
   return host && user ? `${user}@${host}` : undefined;
@@ -29,16 +30,16 @@ export function defaultReplyTo(from: string, domain = process.env.REPLY_TO_DOMAI
 // `HelloBox <hello@example.com>`, on a domain the sender is allowed to use.
 export async function sendAppEmail(input: { to: string; subject: string; react: ReactElement; replyTo?: string }) {
   const [html, text] = await Promise.all([render(input.react), render(input.react, { plainText: true })]);
-  const smtpUrl = process.env.SMTP_URL?.trim();
-  const apiKey = process.env.RESEND_API_KEY;
+  const smtpUrl = setting("SMTP_URL")?.trim();
+  const apiKey = setting("RESEND_API_KEY");
   if (!smtpUrl && !apiKey) {
-    if (process.env.NODE_ENV === "production") {
+    if (isProduction()) {
       throw new Error("SMTP_URL or RESEND_API_KEY is required in production");
     }
     console.info(`[email] to=${input.to} subject=${input.subject}\n${text}`);
     return;
   }
-  const from = process.env.EMAIL_FROM;
+  const from = setting("EMAIL_FROM");
   if (!from) throw new Error(`EMAIL_FROM is required when ${smtpUrl ? "SMTP_URL" : "RESEND_API_KEY"} is set`);
   const replyTo = input.replyTo ?? defaultReplyTo(from);
   if (smtpUrl) {

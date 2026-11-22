@@ -1,6 +1,7 @@
 import { request as httpRequest } from "node:http";
 import { request as httpsRequest } from "node:https";
 import { isIP } from "node:net";
+import { isProduction } from "@hellobox/config";
 import { guardedLookup, isBlockedAddress } from "@hellobox/mail";
 import { badRequest } from "nezt";
 
@@ -11,7 +12,7 @@ export { guardedLookup, isBlockedAddress };
 
 const MAX_RESPONSE_BYTES = 5 * 1024 * 1024;
 
-const allowsLocal = () => process.env.NODE_ENV !== "production";
+const allowsLocal = () => !isProduction();
 
 const unreachable = () =>
   badRequest("That address can't be used. Enter a public HTTPS address for your AI provider");

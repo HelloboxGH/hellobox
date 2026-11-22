@@ -1,3 +1,5 @@
+import { setting } from "@hellobox/config";
+
 import {
   Body,
   Button,
@@ -16,7 +18,7 @@ import type { CSSProperties, ReactNode } from "react";
 
 // Links in every email point at this instance, so a self-hosted install never sends people
 // to someone else's site. Read at load time, so APP_URL must be set where emails are sent.
-export const SITE_URL = (process.env.APP_URL || "http://127.0.0.1:3010").replace(/\/+$/, "");
+export const SITE_URL = (setting("APP_URL") || "http://127.0.0.1:3010").replace(/\/+$/, "");
 const SITE_HOST = SITE_URL.replace(/^https?:\/\//, "");
 
 // The default periwinkle theme, converted from the app's oklch tokens. Email clients

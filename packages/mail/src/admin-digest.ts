@@ -1,4 +1,4 @@
-import { getEnv, parseAdminEmails } from "@hellobox/config";
+import { getEnv, parseAdminEmails, setting } from "@hellobox/config";
 import { account, getDb, members, user } from "@hellobox/db";
 import { getExtensions } from "@hellobox/extensions";
 import { type DigestSignup, sendAppEmail, SignupDigest, signupDigestSubject } from "@hellobox/email";
@@ -7,7 +7,7 @@ import Redis from "ioredis";
 import { createElement } from "react";
 
 // The day boundary for the digest. Set ADMIN_DIGEST_TIMEZONE to an IANA zone such as Africa/Lome.
-export const digestTimeZone = () => process.env.ADMIN_DIGEST_TIMEZONE || "UTC";
+export const digestTimeZone = () => setting("ADMIN_DIGEST_TIMEZONE") || "UTC";
 
 const METHODS: Record<string, string> = { credential: "Email", google: "Google", github: "GitHub" };
 export const signupMethod = (providers: string[]) => {

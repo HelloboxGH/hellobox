@@ -1,5 +1,5 @@
 import { createHmac } from "node:crypto";
-import { decrypt, encrypt, getEnv } from "@hellobox/config";
+import { decrypt, encrypt, getEnv, setting } from "@hellobox/config";
 import { NewMail, sendAppEmail } from "@hellobox/email";
 import { createElement } from "react";
 import webpush from "web-push";
@@ -45,7 +45,21 @@ export type Notice = {
 export class ChannelGone extends Error {}
 
 export function notificationEnv() {
-  const env = process.env;
+  const env = {
+    TELEGRAM_BOT_TOKEN: setting("TELEGRAM_BOT_TOKEN"),
+    TELEGRAM_BOT_USERNAME: setting("TELEGRAM_BOT_USERNAME"),
+    TELEGRAM_WEBHOOK_SECRET: setting("TELEGRAM_WEBHOOK_SECRET"),
+    VAPID_PUBLIC_KEY: setting("VAPID_PUBLIC_KEY"),
+    VAPID_PRIVATE_KEY: setting("VAPID_PRIVATE_KEY"),
+    VAPID_SUBJECT: setting("VAPID_SUBJECT"),
+    SUPPORT_EMAIL: setting("SUPPORT_EMAIL"),
+    NTFY_URL: setting("NTFY_URL"),
+    NTFY_TOKEN: setting("NTFY_TOKEN"),
+    DISCORD_CLIENT_ID: setting("DISCORD_CLIENT_ID"),
+    DISCORD_CLIENT_SECRET: setting("DISCORD_CLIENT_SECRET"),
+    SLACK_CLIENT_ID: setting("SLACK_CLIENT_ID"),
+    SLACK_CLIENT_SECRET: setting("SLACK_CLIENT_SECRET"),
+  };
   return {
     appUrl: getEnv().APP_URL.replace(/\/$/, ""),
     telegram: env.TELEGRAM_BOT_TOKEN
