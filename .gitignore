@@ -42,7 +42,9 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-.claude/
+# Local Claude Code state. Project skills are shared (and stay private: .claude isn't exported).
+.claude/*
+!.claude/skills/
 
 # Motion films (renders, audio and captures are large)
 videos/
