@@ -1,8 +1,8 @@
 blank_issues_enabled: false
 contact_links:
-  - name: Ask a question or share an idea
+  - name: Ask a question or talk an idea through
     url: https://github.com/HelloboxGH/hellobox/discussions
-    about: Setup help, "is this normal?", and ideas for new features go to Discussions.
+    about: Setup help, "is this normal?", and ideas that aren't a clear request yet go to Discussions.
   - name: Report a security problem
     url: https://github.com/HelloboxGH/hellobox/security/advisories/new
     about: Privately, never in a public issue. SECURITY.md explains how.

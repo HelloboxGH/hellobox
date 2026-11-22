@@ -1,0 +1,42 @@
+name: Request a feature
+description: Something HelloBox should do that it doesn't yet.
+labels: ["feature request"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Search the open issues first: if someone already asked, add a 👍 to theirs instead.
+        Not sure yet what you want, or want to talk it through? Start in Discussions.
+        A provider HelloBox doesn't support has its own form.
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What you're trying to do, and what gets in the way today. Start from the problem, not the solution.
+      placeholder: Our team answers the same five questions every day, and copying the answers from a doc is slow.
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: What you'd like
+      description: How you picture it working. A sketch or a screenshot from another app helps.
+  - type: textarea
+    id: today
+    attributes:
+      label: What you do now
+      description: Any workaround you use, and how often you hit this.
+  - type: dropdown
+    id: where
+    attributes:
+      label: Where you run HelloBox
+      options:
+        - Self-hosted
+        - HelloBox Cloud (hellobox.app)
+        - Not using it yet
+  - type: checkboxes
+    id: build
+    attributes:
+      label: Building it
+      options:
+        - label: I'd like to build it myself. (Read CONTRIBUTING.md first, and let's agree on the approach here before you start.)
