@@ -322,7 +322,7 @@ Try a restore on a spare machine now, before you need it.
 
    ```bash
    git pull
-   sed -i "s|^HELLOBOX_VERSION=.*|HELLOBOX_VERSION=1.2.3|" .env
+   sed -i "s|^HELLOBOX_VERSION=.*|HELLOBOX_VERSION=2026.11.1|" .env
    ```
 
 4. Pull the new images and restart:

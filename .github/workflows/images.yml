@@ -1,0 +1,186 @@
+name: Images
+
+# Publishes the web and worker images for a release. release.yml calls it right after it
+# tags a version (a tag pushed with GITHUB_TOKEN starts no workflow, so this can't listen
+# for tags). It can also run by hand from the Actions tab: with a version, it rebuilds that
+# release; without one, it builds the chosen branch as sha-<commit> only.
+# Each image goes to GitHub's registry and, when DOCKERHUB_USERNAME is set as a repository
+# variable, to Docker Hub too (with the DOCKERHUB_TOKEN secret).
+#
+# Tags for a release such as 2026.11.1: 2026.11.1, 2026.11 (newest release of that month)
+# and latest.
+#
+# Each architecture builds on its own runner, then the merge job joins them into one image.
+# That's much faster than emulating arm64 on an x86 runner.
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: The release tag to build, such as 2026.11.1
+        type: string
+        required: true
+  workflow_dispatch:
+    inputs:
+      version:
+        description: A release tag to rebuild (2026.11.1), or empty for this branch as sha-<commit>
+        type: string
+        required: false
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  DOCKERHUB_USERNAME: ${{ vars.DOCKERHUB_USERNAME }}
+  VERSION: ${{ inputs.version }}
+  # The same tag rules in both jobs: build's labels and merge's tags must agree.
+  # semver reads 2026.11.1 as major 2026, minor 11, patch 1.
+  IMAGE_TAGS: |
+    type=semver,pattern={{version}},value=${{ inputs.version }},enable=${{ inputs.version != '' }}
+    type=semver,pattern={{major}}.{{minor}},value=${{ inputs.version }},enable=${{ inputs.version != '' }}
+    type=raw,value=latest,enable=${{ inputs.version != '' }}
+    type=sha,prefix=sha-,enable=${{ inputs.version == '' }}
+
+jobs:
+  build:
+    name: Build ${{ matrix.app }} (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [web, worker]
+        arch: [amd64, arm64]
+        include:
+          - { arch: amd64, platform: linux/amd64, runner: ubuntu-latest }
+          - { arch: arm64, platform: linux/arm64, runner: ubuntu-24.04-arm }
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Build the tagged commit, not wherever main is now. Empty: the run's own ref.
+          ref: ${{ inputs.version != '' && format('refs/tags/{0}', inputs.version) || '' }}
+      - name: Name the images
+        id: images
+        env:
+          APP: ${{ matrix.app }}
+          OWNER: ${{ github.repository_owner }}
+        run: |
+          list="ghcr.io/${OWNER,,}/hellobox-${APP}"
+          if [ -n "$DOCKERHUB_USERNAME" ]; then
+            list="${list}"$'\n'"${DOCKERHUB_USERNAME}/hellobox-${APP}"
+          fi
+          {
+            echo "list<<EOF"
+            echo "$list"
+            echo "EOF"
+            echo "names=${list//$'\n'/,}"
+          } >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/login-action@v3
+        if: ${{ vars.DOCKERHUB_USERNAME != '' }}
+        with:
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      # Only for the labels: the tags are made by the merge job.
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ steps.images.outputs.list }}
+          flavor: latest=false
+          tags: ${{ env.IMAGE_TAGS }}
+      - id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/${{ matrix.app }}/Dockerfile
+          platforms: ${{ matrix.platform }}
+          labels: ${{ steps.meta.outputs.labels }}
+          provenance: false
+          cache-from: type=gha,scope=${{ matrix.app }}-${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.app }}-${{ matrix.arch }}
+          # No tag yet: push each image by its digest, to every registry.
+          outputs: type=image,"name=${{ steps.images.outputs.names }}",push-by-digest=true,name-canonical=true,push=true
+      - name: Keep the digest
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          mkdir -p /tmp/digests
+          touch "/tmp/digests/${DIGEST#sha256:}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: digests-${{ matrix.app }}-${{ matrix.arch }}
+          path: /tmp/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  merge:
+    name: Publish ${{ matrix.app }}
+    needs: build
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [web, worker]
+    steps:
+      - name: Name the images
+        id: images
+        env:
+          APP: ${{ matrix.app }}
+          OWNER: ${{ github.repository_owner }}
+        run: |
+          list="ghcr.io/${OWNER,,}/hellobox-${APP}"
+          if [ -n "$DOCKERHUB_USERNAME" ]; then
+            list="${list}"$'\n'"${DOCKERHUB_USERNAME}/hellobox-${APP}"
+          fi
+          {
+            echo "list<<EOF"
+            echo "$list"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+      - uses: actions/download-artifact@v4
+        with:
+          path: /tmp/digests
+          pattern: digests-${{ matrix.app }}-*
+          merge-multiple: true
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/login-action@v3
+        if: ${{ vars.DOCKERHUB_USERNAME != '' }}
+        with:
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ steps.images.outputs.list }}
+          # latest comes from IMAGE_TAGS, only for releases.
+          flavor: latest=false
+          tags: ${{ env.IMAGE_TAGS }}
+      - name: Join the architectures into one image
+        env:
+          IMAGES: ${{ steps.images.outputs.list }}
+        working-directory: /tmp/digests
+        run: |
+          for image in $IMAGES; do
+            tags=$(jq -r --arg image "$image" '.tags[] | select(startswith($image + ":")) | "-t " + .' <<< "$DOCKER_METADATA_OUTPUT_JSON")
+            sources=$(printf "${image}@sha256:%s " *)
+            # shellcheck disable=SC2086
+            docker buildx imagetools create $tags $sources
+          done
+      - name: Check the result
+        env:
+          IMAGES: ${{ steps.images.outputs.list }}
+          VERSION: ${{ steps.meta.outputs.version }}
+        run: |
+          for image in $IMAGES; do
+            docker buildx imagetools inspect "${image}:${VERSION}"
+          done
