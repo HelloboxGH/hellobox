@@ -5,12 +5,13 @@
 <h1 align="center">HelloBox</h1>
 
 <p align="center">
-  The inbox for the email you already send.<br>
-  Connect Amazon SES, Resend, Postmark or Mailgun, and read, answer and share the replies with your team.
+  An open-source shared inbox for Amazon SES, Resend, Postmark and Mailgun.<br>
+  Read, assign and answer your team's email through your own provider account. Self-host it with Docker, or use HelloBox Cloud.
 </p>
 
 <p align="center">
   <a href="https://hellobox.app">Website</a> ·
+  <a href="https://docs.hellobox.app">Docs</a> ·
   <a href="docs/self-hosting/README.md">Self-hosting</a> ·
   <a href="CONTRIBUTING.md">Contributing</a> ·
   <a href="https://github.com/HelloboxGH/hellobox/discussions">Discussions</a>
@@ -66,6 +67,9 @@ docker compose up -d
 [the conventions](docs/CONVENTIONS.md) for how the code looks.
 
 ## Docs
+
+The full documentation is at [docs.hellobox.app](https://docs.hellobox.app). The same pages
+are in this repo:
 
 - [Self-hosting](docs/self-hosting/README.md): install, providers, backups, upgrades,
   troubleshooting.
