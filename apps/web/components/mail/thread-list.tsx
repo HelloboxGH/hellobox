@@ -282,7 +282,7 @@ export function ThreadList({
               {bar.anyUnread ? <EnvelopeSimpleOpen /> : <EnvelopeSimple />}
             </IconAction>
             <IconAction label={bar.allStarred ? "Remove star" : "Star"} onClick={() => run({ kind: "star", value: !bar.allStarred }, picked)}>
-              <Star weight={bar.allStarred ? "fill" : "regular"} className={bar.allStarred ? "text-amber-500" : undefined} />
+              <Star weight={bar.allStarred ? "fill" : "regular"} className={bar.allStarred ? "text-star" : undefined} />
             </IconAction>
             <Menu>
               <MenuTrigger render={<Button aria-label="More actions" size="icon-sm" variant="ghost" />}><DotsThree weight="bold" /></MenuTrigger>
@@ -524,7 +524,7 @@ export function ThreadList({
                       size="icon-xs"
                       className={cn(
                         "absolute right-2.5 bottom-2 transition-opacity focus-visible:opacity-100 group-hover/row:opacity-100",
-                        thread.starred ? "text-amber-500 opacity-100" : "opacity-0",
+                        thread.starred ? "text-star opacity-100" : "opacity-0",
                       )}
                     >
                       <Star weight={thread.starred ? "fill" : "regular"} />

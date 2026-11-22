@@ -12,7 +12,7 @@
     "dev:web": "bun run --filter '@hellobox/web' dev",
     "dev:worker": "bun run --filter '@hellobox/worker' dev",
     "build": "bun run --filter '@hellobox/web' build",
-    "lint": "bun run --filter '@hellobox/web' lint",
+    "lint": "eslint apps/worker packages && bun run --filter '@hellobox/web' lint",
     "typecheck": "bun run --filter '*' typecheck",
     "test": "bun test packages",
     "db:generate": "bun run --filter '@hellobox/db' generate",
@@ -20,6 +20,11 @@
     "db:seed": "bun --env-file=apps/web/.env.local packages/db/src/seed.ts",
     "services:up": "docker compose -f docker/compose.dev.yml up -d",
     "services:down": "docker compose -f docker/compose.dev.yml down"
+  },
+  "devDependencies": {
+    "@hellobox/eslint-config": "workspace:*",
+    "eslint": "^9",
+    "typescript-eslint": "^8.72.1"
   },
   "ignoreScripts": [
     "sharp",

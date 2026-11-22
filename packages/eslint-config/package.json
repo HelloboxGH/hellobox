@@ -1,0 +1,11 @@
+{
+  "name": "@hellobox/eslint-config",
+  "version": "0.0.1",
+  "private": true,
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "main": "./index.mjs",
+  "exports": {
+    ".": "./index.mjs"
+  }
+}

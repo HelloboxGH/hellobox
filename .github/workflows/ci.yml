@@ -13,6 +13,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # The parent too, so the next step can compare against main.
+          fetch-depth: 2
+      # A merged migration may already have run on someone's database, so it never changes.
+      # HEAD^1 is main: the branch a pull request merges into, or the commit before a push.
+      - name: Merged migrations are unchanged
+        run: |
+          changed=$(git diff --name-only --diff-filter=DMR HEAD^1 HEAD -- 'packages/*/migrations/*.sql' 'packages/*/migrations/meta/*_snapshot.json')
+          if [ -n "$changed" ]; then
+            echo "::error::These migrations are already merged and can't change. Revert them and generate a new migration instead."
+            echo "$changed"
+            exit 1
+          fi
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.4.2

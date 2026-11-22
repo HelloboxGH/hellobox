@@ -56,6 +56,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     >
       <head>
         {/* Runs before paint so the saved theme never flashes. */}
+        {/* eslint-disable-next-line react/no-danger -- our own constant script that applies the saved theme before paint */}
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
       <body className="relative min-h-full">

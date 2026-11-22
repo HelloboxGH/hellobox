@@ -222,6 +222,7 @@ function DnsRecords({ connection, workspaceId, domain, initial, autoApply, admin
         ) : (
           // Cloudflare's own orange, so it reads as their sign-in.
           <Button
+            // eslint-disable-next-line hellobox/no-hard-coded-colors -- white on Cloudflare's orange, as on their own button
             className="border-[#F38020] bg-[#F38020] text-white shadow-[0_1px_2px_rgb(0_0_0/0.15)] hover:bg-[#E06D10] focus-visible:ring-[#F38020]/40 [&_svg]:text-white"
             render={<a href={`/api/cloudflare/oauth/start?${new URLSearchParams({ workspace: workspaceId, connection: connection.id, domain })}`} />}
           >

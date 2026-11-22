@@ -235,6 +235,7 @@ function AccountTab({ data, refresh }: { data: Bootstrap; refresh: () => void })
         {setup ? (
           <div className="space-y-4">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+              {/* eslint-disable-next-line hellobox/no-hard-coded-colors -- QR codes need a white quiet zone to scan, in both themes */}
               <div className="w-fit rounded-xl border bg-white p-3"><QRCode value={setup.uri} size={136} /></div>
               <p className="text-muted-foreground text-sm">Scan this with your authenticator app, then enter the 6-digit code it shows.</p>
             </div>

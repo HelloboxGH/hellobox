@@ -502,7 +502,7 @@ export function Reader({
         {latest && <IconAction label="Forward" shortcut="F" onClick={() => forward(latest)}><ArrowArcRight /></IconAction>}
         <Separator orientation="vertical" className="mx-1 h-5" />
         <IconAction label={detail.starred ? "Remove star" : "Star"} shortcut="S" onClick={() => update({ starred: !detail.starred })}>
-          <Star weight={detail.starred ? "fill" : "regular"} className={detail.starred ? "text-amber-500" : undefined} />
+          <Star weight={detail.starred ? "fill" : "regular"} className={detail.starred ? "text-star" : undefined} />
         </IconAction>
         {thread.folder === "inbox" ? (
           <IconAction label="Archive" shortcut="E" onClick={() => update({ folder: "archive" }, "Archived", true)}><Archive /></IconAction>

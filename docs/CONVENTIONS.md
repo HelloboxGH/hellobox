@@ -52,9 +52,12 @@ rest is.
   server's own network.
 - **Database:** change `packages/db/src/schema.ts`, then generate the migration with
   `bunx drizzle-kit generate` in `packages/db`. Never edit a generated migration by hand,
-  and never change one that's already merged.
-- **Settings** are read through `packages/config`. A new variable also goes in
+  and never change one that's already merged. *(Merged migrations are checked by CI.)*
+- **Settings** are read through `packages/config`: `setting("NAME")`, `isProduction()`,
+  `isDevelopment()`, never `process.env` directly (browser code may read
+  `process.env.NODE_ENV`). A new variable goes in the `SETTINGS` list and in
   `.env.example`, grouped, with a comment: required or optional, what it does, an example.
+  *(Checked by lint and a test.)*
 - **Providers** implement the `MailProvider` interface in `packages/providers`. Mail
   handling (ingest, threading, spam, sending) lives in `packages/mail`, not in the app.
 - **Extension points:** the open code never imports hosted-only code. Where the hosted
@@ -69,10 +72,16 @@ rest is.
 ## Interface
 
 - Build with the coss ui components in `apps/web/components/ui` (Base UI and Tailwind 4)
-  and Phosphor icons, not bare Base UI or native controls.
-- Colors come from the theme tokens (`--brand`, `--canvas`, `--primary`, and the
-  `success` / `warning` / `info` / `destructive` status tokens), never hard-coded values.
-  The brand color is for selection, unread, focus and AI only.
+  and Phosphor icons, not bare Base UI or native controls. *(Checked by lint.)*
+- Colors come from the theme tokens (`--brand`, `--canvas`, `--primary`, `--star`, and the
+  `success` / `warning` / `info` / `destructive` status tokens), never Tailwind palette
+  classes (`text-amber-500`, `bg-white`) or hex values. The brand color is for selection,
+  unread, focus and AI only. Other companies' logos and buttons keep their own brand colors.
+  *(Checked by lint.)*
+- No `dangerouslySetInnerHTML`. Email HTML is shown in a sandboxed iframe. *(Checked by
+  lint.)*
+- Where a rule really can't apply, disable it for that one line with the reason:
+  `// eslint-disable-next-line <rule> -- <why>`.
 - Loading shows skeletons, and every view has a designed empty state.
 - Destructive actions confirm in an alert dialog. Undo uses a toast.
 - Keyboard first: new actions get a shortcut where it makes sense, shown in the tooltip.

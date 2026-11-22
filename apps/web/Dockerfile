@@ -8,6 +8,7 @@ COPY package.json bun.lock ./
 COPY apps/web/package.json ./apps/web/
 COPY apps/worker/package.json ./apps/worker/
 COPY packages/config/package.json ./packages/config/
+COPY packages/eslint-config/package.json ./packages/eslint-config/
 COPY packages/db/package.json ./packages/db/
 COPY packages/email/package.json ./packages/email/
 COPY packages/extensions/package.json ./packages/extensions/

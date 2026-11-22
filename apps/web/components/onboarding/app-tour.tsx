@@ -160,6 +160,7 @@ export function AppTour({ onClose }: { onClose: () => void }) {
 
   return (
     <>
+      {/* eslint-disable-next-line hellobox/no-hard-coded-colors -- a scrim darkens the page in both themes, like the dialog backdrop */}
       {!anchored && <div aria-hidden="true" className="pointer-events-none fixed inset-0 z-[60] bg-black/45" />}
       <div
         ref={spotlight}

@@ -77,6 +77,7 @@ export function EmailPreview({
         title="Email preview"
         sandbox=""
         srcDoc={previewDocument(preview.html)}
+        // eslint-disable-next-line hellobox/no-hard-coded-colors -- emails are designed for a white page, whatever our theme
         className="h-[28rem] w-full rounded-xl border border-border bg-white"
       />
     </div>

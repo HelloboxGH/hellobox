@@ -1,6 +1,7 @@
 import { defineConfig, globalIgnores } from "eslint/config";
 import nextVitals from "eslint-config-next/core-web-vitals";
 import nextTs from "eslint-config-next/typescript";
+import { conventions } from "@hellobox/eslint-config";
 
 const eslintConfig = defineConfig([
   ...nextVitals,
@@ -17,27 +18,8 @@ const eslintConfig = defineConfig([
     "hooks/**",
     "lib/composer-*.ts",
   ]),
-  {
-    files: ["**/*.{ts,tsx,mjs}"],
-    ignores: ["cloud/**", "app/(cloud)/**"],
-    rules: {
-      "no-restricted-imports": [
-        "error",
-        {
-          patterns: [
-            {
-              regex: "(^|/)(cloud|\\(cloud\\)|cloud-[^/]*)(/|$)",
-              message: "Open code can't import cloud code. Add a slot in @hellobox/extensions.",
-            },
-            {
-              regex: "^@ext/(?!(server|client|proxy)$)",
-              message: "Only @ext/server, @ext/client and @ext/proxy are entry points.",
-            },
-          ],
-        },
-      ],
-    },
-  },
+  // The rules in docs/public/CONVENTIONS.md, shared with the worker and packages.
+  ...conventions({ ui: true, ext: ["server", "client", "proxy"], cloud: ["cloud/**", "app/(cloud)/**"] }),
 ]);
 
 export default eslintConfig;

@@ -252,6 +252,7 @@ export function NotificationsTab({ data, onboarding = false }: { data: Bootstrap
           </DialogHeader>
           {subscribe && (
             <DialogPanel className="space-y-3">
+              {/* eslint-disable-next-line hellobox/no-hard-coded-colors -- QR codes need a white quiet zone to scan, in both themes */}
               <div className="mx-auto w-fit rounded-xl border bg-white p-3"><QRCode value={ntfyLink(subscribe.server, subscribe.topic)} size={160} /></div>
               <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
                 <dt className="text-muted-foreground">Server</dt><dd className="break-all font-mono">{subscribe.server}</dd>

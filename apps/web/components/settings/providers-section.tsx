@@ -795,7 +795,7 @@ function ServerChoice({ selected, onSelect, title, detail }: { selected: boolean
         selected && "border-brand bg-brand-soft hover:bg-brand-soft",
       )}
     >
-      <span className={cn("mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full border", selected && "border-brand bg-brand text-white")}>
+      <span className={cn("mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full border", selected && "border-brand bg-brand text-brand-contrast")}>
         {selected && <Check className="size-2.5" weight="bold" />}
       </span>
       <span className="min-w-0">

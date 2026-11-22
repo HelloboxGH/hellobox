@@ -9,6 +9,10 @@
   --brand: oklch(0.55 var(--accent-c) var(--accent-h));
   --brand-soft: oklch(0.945 calc(var(--accent-c) * 0.22) var(--accent-h));
   --brand-foreground: oklch(0.42 var(--accent-c) var(--accent-h));
+  /* Text on a solid brand fill, like the unread count. */
+  --brand-contrast: var(--color-white);
+  /* Starred messages. */
+  --star: var(--color-amber-500);
   --canvas: oklch(0.968 calc(var(--accent-c) * 0.06) var(--accent-h));
   --primary: var(--color-neutral-800);
   --accent: --alpha(var(--color-black) / 4%);
@@ -99,6 +103,8 @@
   --color-brand: var(--brand);
   --color-brand-soft: var(--brand-soft);
   --color-brand-foreground: var(--brand-foreground);
+  --color-brand-contrast: var(--brand-contrast);
+  --color-star: var(--star);
   --color-canvas: var(--canvas);
   --font-sans: var(--font-sans);
   --font-heading: var(--font-heading);
