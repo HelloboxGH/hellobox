@@ -318,10 +318,12 @@ Try a restore on a spare machine now, before you need it.
 
 1. Take a backup (above).
 2. Read the release notes for the version you want.
-3. Update the files and set the version:
+3. Check out the files of that release, so the compose file matches the images, and set
+   the version:
 
    ```bash
-   git pull
+   git fetch --tags
+   git checkout 2026.11.1
    sed -i "s|^HELLOBOX_VERSION=.*|HELLOBOX_VERSION=2026.11.1|" .env
    ```
 
