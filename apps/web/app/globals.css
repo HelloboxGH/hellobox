@@ -598,9 +598,22 @@ textarea,
   margin-inline: 0.4em;
 }
 
+/* In a headline the extra width would push words onto the next line, so the pill grows
+   over its neighbours instead of making room, and only a little. */
+.provider-pill-heading:hover,
+.provider-pill-heading:focus-visible {
+  scale: 1.05 1;
+  margin-inline: 0;
+}
+
 .provider-pill:hover > span,
 .provider-pill:focus-visible > span {
   scale: 1 1.12;
+}
+
+.provider-pill-heading:hover > span,
+.provider-pill-heading:focus-visible > span {
+  scale: 1 1.06;
 }
 
 @media (prefers-reduced-motion: reduce) {

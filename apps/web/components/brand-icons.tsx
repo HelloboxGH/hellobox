@@ -1,4 +1,5 @@
-import { RedditLogo } from "@phosphor-icons/react";
+// The SSR build works in server and client components alike.
+import { RedditLogo } from "@phosphor-icons/react/dist/ssr";
 import { type SVGProps, useId } from "react";
 
 export function GoogleIcon(props: SVGProps<SVGSVGElement>) {

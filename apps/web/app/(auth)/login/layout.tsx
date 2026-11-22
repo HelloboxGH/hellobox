@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 
 export const metadata: Metadata = {
   title: "Sign in",
-  description: "Sign in to HelloBox, the inbox for the email you already send.",
+  description: "Sign in to HelloBox, the shared inbox for Amazon SES, Resend, Postmark and Mailgun.",
   alternates: { canonical: "/login" },
 };
 

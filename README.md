@@ -18,7 +18,7 @@
 </p>
 
 <p align="center">
-  <img src="docs/screenshot.png" alt="HelloBox's inbox: four mailboxes on Amazon SES, Postmark, Mailgun and Resend, a conversation that came in through Amazon SES with a team note, and an AI-drafted reply going out the same way." width="100%">
+  <img src="docs/screenshot.png" alt="The HelloBox inbox: shared mailboxes for hello@, support@, billing@ and news@, a conversation assigned to a teammate with an internal note, and an AI-drafted reply." width="100%">
 </p>
 
 ## What it is
