@@ -19,7 +19,8 @@ export type MailJob =
   | { name: "notify-flush"; data: { channelId: string } }
   | { name: "notify-test"; data: { channelId: string } }
   | { name: "notify-digest"; data: Record<string, never> }
-  | { name: "team-email"; data: { workspaceId: string; userId: string } };
+  | { name: "team-email"; data: { workspaceId: string; userId: string } }
+  | { name: "import"; data: { importId: string } };
 
 export function getRedisConnection() {
   const url = new URL(getEnv().REDIS_URL);
@@ -57,6 +58,10 @@ export const enqueueIngest = (connectionId: string, emailId: string, delayMs = 0
     // BullMQ ignores a job whose id already exists, which absorbs repeat webhooks.
     { jobId: `ingest_${connectionId}_${emailId}`, delay: Math.max(0, delayMs) },
   );
+
+// One job per file. It can run for a long time and picks up where it stopped on a retry.
+export const enqueueImport = (importId: string) =>
+  getMailQueue().add("import", { importId }, { jobId: `import_${importId}`, attempts: 3 });
 
 export const sendJobId = (outboxId: string) => `send_${outboxId}`;
 

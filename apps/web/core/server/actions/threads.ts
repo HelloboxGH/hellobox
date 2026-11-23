@@ -157,7 +157,7 @@ export const listThreads = workspaceAction("/threads/list")
       })
       .from(threads)
       .innerJoin(mailboxes, eq(mailboxes.id, threads.mailboxId))
-      .innerJoin(domains, eq(domains.id, mailboxes.domainId))
+      .leftJoin(domains, eq(domains.id, mailboxes.domainId))
       .leftJoin(assignee, eq(assignee.id, threads.assignedTo))
       .leftJoin(
         threadUserState,

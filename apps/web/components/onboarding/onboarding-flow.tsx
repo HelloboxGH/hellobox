@@ -7,6 +7,8 @@ import { Logo } from "@/components/brand";
 import { SenderAvatar } from "@/components/mail/sender-avatar";
 import { ProfilePhoto } from "@/components/profile-photo";
 import { NotificationsTab } from "@/components/settings/notifications-tab";
+import { ImportPanel } from "@/components/mail/import-panel";
+import { isUploading } from "@/core/client/imports";
 import { WorkspaceLogoPicker, WorkspaceMark } from "@/components/workspace-logo";
 import { AppProviders } from "@/components/providers";
 import { Segmented } from "@/components/segmented";
@@ -21,12 +23,16 @@ import { authClient } from "@/core/client/auth-client";
 import { notifyError } from "@/core/client/notify";
 import { cn } from "@/lib/utils";
 
-type StepId = "profile" | "appearance" | "workspace" | "notifications";
+type StepId = "profile" | "appearance" | "workspace" | "import" | "notifications";
 
 const STEP_COPY: Record<StepId, { title: string; description: string }> = {
   profile: { title: "Set up your profile", description: "This is how you appear in HelloBox." },
   appearance: { title: "Make it yours", description: "Pick how HelloBox looks on this device. You can change it any time." },
   workspace: { title: "Name your workspace", description: "Its name and logo are what your team sees when they switch workspaces." },
+  import: {
+    title: "Bring your old mail",
+    description: "Import mail from Gmail, Apple Mail, Thunderbird or any app that exports MBOX or EML. It works before your domain is set up, and you can skip this and do it later from the account menu.",
+  },
   notifications: {
     title: "Hear about new mail",
     description: "Pick where we tell you when mail arrives. Add as many as you like, or skip this and do it later in Settings.",
@@ -74,8 +80,8 @@ function Preview({ name, image, workspace, logo }: { name: string; image: string
 // invite or SSO, and renaming it here would rename someone else's team.
 function stepsFor(data: Bootstrap): StepId[] {
   return data.role === "owner"
-    ? ["profile", "appearance", "workspace", "notifications"]
-    : ["profile", "appearance", "notifications"];
+    ? ["profile", "appearance", "workspace", "import", "notifications"]
+    : ["profile", "appearance", "import", "notifications"];
 }
 
 function Flow() {
@@ -130,6 +136,11 @@ function Flow() {
   const copy = STEP_COPY[step];
 
   async function finish() {
+    // Leaving the page stops an upload that's still going.
+    if (isUploading() && !window.confirm("An import is still uploading. Leaving now stops it. Leave anyway?")) {
+      setBusy(false);
+      return;
+    }
     await call("/onboarding/complete");
     window.location.href = "/inbox?tour=1";
   }
@@ -181,7 +192,7 @@ function Flow() {
           <Logo size={32} />
           <Button variant="ghost" size="sm" disabled={busy} onClick={skip}>Skip setup</Button>
         </div>
-        <div className={cn("mx-auto flex w-full flex-1", step === "notifications" ? "max-w-2xl" : "max-w-md", " flex-col justify-center gap-6 py-10")}>
+        <div className={cn("mx-auto flex w-full flex-1", step === "notifications" || step === "import" ? "max-w-2xl" : "max-w-md", " flex-col justify-center gap-6 py-10")}>
           <div className="space-y-3">
             <div className="flex gap-1.5" role="img" aria-label={`Step ${index + 1} of ${steps.length}`}>
               {steps.map((item, position) => (
@@ -194,6 +205,7 @@ function Flow() {
 
           {/* Outside the form: its dialogs have forms of their own, and their submits would bubble up here. */}
           {step === "notifications" && <NotificationsTab data={data} onboarding />}
+          {step === "import" && <ImportPanel data={data} onboarding />}
           <Form className="space-y-5" onSubmit={submit}>
             {step === "profile" && (
               <>

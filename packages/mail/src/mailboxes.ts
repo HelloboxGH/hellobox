@@ -4,7 +4,8 @@ import { and, eq, isNull } from "drizzle-orm";
 type Removable = { removedAt: Date | string | null };
 
 // Why nothing can be sent from a mailbox, or null when it can send.
-export function sendBlockedReason(mailbox: Removable & { isCatchAll?: boolean }, domain: Removable) {
+export function sendBlockedReason(mailbox: Removable & { isCatchAll?: boolean }, domain: Removable | null) {
+  if (!domain) return "This mailbox holds imported mail. Add its domain in settings to send from it.";
   if (mailbox.isCatchAll) return "This mail was sent to an address that has no mailbox. Add the mailbox in settings to reply from it.";
   if (mailbox.removedAt) return "This mailbox was deleted. Add it again in settings to send from it.";
   if (domain.removedAt) return "This mailbox's domain was removed from HelloBox. Add it again to send from it.";

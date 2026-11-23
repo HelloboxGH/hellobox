@@ -7,6 +7,8 @@ import {
   reconnectMessage,
   sendSignupDigest,
   ingestEmail,
+  failImport,
+  runImport,
   provisionSesConnection,
   activatePendingPostmarkInbound,
   sendCampaign,
@@ -77,6 +79,8 @@ async function runJob(job: Job) {
           throw new Error("Postmark can't see the MX record yet");
         }
         return;
+      case "import":
+        return runImport(job.data.importId);
       default: {
         const handler = getExtensions().jobs.handlers?.[job.name];
         if (!handler) throw new Error(`Unknown job: ${job.name}`);
@@ -113,6 +117,9 @@ worker.on("failed", async (job, err) => {
       .update(outbox)
       .set({ status: "failed", error: err.message })
       .where(eq(outbox.id, job.data.outboxId));
+  }
+  if (job?.name === "import" && final) {
+    await failImport(job.data.importId, "The import stopped unexpectedly. Try again; emails already imported are skipped.");
   }
   if (job?.name === "send-campaign" && final) {
     await getDb()

@@ -19,8 +19,9 @@ export const countedDomain = () =>
   and(eq(domains.enabled, true), isNull(domains.removedAt), ne(connections.status, "disconnected"));
 
 // Mail on a domain removed from HelloBox stays readable. Domains switched off (by hand or to
-// fit the plan) hide theirs until they're back on. Needs mailboxes and domains joined.
-export const shownDomain = () => or(eq(domains.enabled, true), isNotNull(domains.removedAt));
+// fit the plan) hide theirs until they're back on. A mailbox with no domain holds imported
+// mail and is always shown. Needs mailboxes joined and domains left-joined.
+export const shownDomain = () => or(isNull(domains.id), eq(domains.enabled, true), isNotNull(domains.removedAt));
 
 // Whether new mail for a domain comes in through this copy of it, given every copy of the
 // domain still in HelloBox (see domainCopies). Only one workspace ever takes it, so no

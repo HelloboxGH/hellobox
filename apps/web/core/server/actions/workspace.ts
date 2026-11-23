@@ -97,7 +97,7 @@ export const bootstrap = workspaceAction("/app/bootstrap").handler(async ({ ctx 
               .from(threads)
               .innerJoin(members, and(eq(members.workspaceId, threads.workspaceId), eq(members.userId, ctx.user.id)))
               .innerJoin(mailboxes, eq(mailboxes.id, threads.mailboxId))
-              .innerJoin(domains, eq(domains.id, mailboxes.domainId))
+              .leftJoin(domains, eq(domains.id, mailboxes.domainId))
               .leftJoin(
                 mailboxMembers,
                 and(eq(mailboxMembers.mailboxId, mailboxes.id), eq(mailboxMembers.userId, ctx.user.id)),
@@ -178,7 +178,7 @@ export const bootstrap = workspaceAction("/app/bootstrap").handler(async ({ ctx 
             })
             .from(threads)
             .innerJoin(mailboxes, eq(mailboxes.id, threads.mailboxId))
-            .innerJoin(domains, eq(domains.id, mailboxes.domainId))
+            .leftJoin(domains, eq(domains.id, mailboxes.domainId))
             .leftJoin(
               threadUserState,
               and(eq(threadUserState.threadId, threads.id), eq(threadUserState.userId, ctx.user.id)),
@@ -454,6 +454,14 @@ export const createMailbox = adminAction("/mailboxes/create")
       await emit(ctx, "mailbox.restored", address);
       return restored;
     }
+    // Imported before the domain was here: give it the domain. Who reads it stays the same,
+    // so imported personal mail stays personal.
+    const [adopted] = await db
+      .update(mailboxes)
+      .set({ domainId: domain.id, ...(input.displayName ? { displayName: input.displayName } : {}) })
+      .where(and(eq(mailboxes.workspaceId, ctx.workspace.id), eq(mailboxes.address, address), isNull(mailboxes.domainId)))
+      .returning();
+    if (adopted) return adopted;
     const [mailbox] = await db
       .insert(mailboxes)
       .values({

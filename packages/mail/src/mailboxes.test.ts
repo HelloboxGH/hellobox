@@ -18,3 +18,7 @@ describe("sendBlockedReason", () => {
 test("the unknown-recipients mailbox never sends", () => {
   expect(sendBlockedReason({ removedAt: null, isCatchAll: true }, { removedAt: null })).toContain("no mailbox");
 });
+
+test("a mailbox made by an import, with no domain, can't send", () => {
+  expect(sendBlockedReason({ removedAt: null }, null)).toContain("imported mail");
+});

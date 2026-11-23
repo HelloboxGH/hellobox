@@ -151,7 +151,15 @@ async function resolveMailbox(
     );
   for (const address of addresses) {
     const mailbox = existing.find((row) => row.address === address);
-    if (mailbox) return { mailbox, unknownRecipient: null };
+    if (!mailbox) continue;
+    // Made by an import before its domain was here: it takes the domain now, so new mail
+    // joins the imported history and replies can go out.
+    const domain = known.find((row) => row.name === domainOf(address));
+    if (!mailbox.domainId && domain) {
+      await db.update(mailboxes).set({ domainId: domain.id }).where(eq(mailboxes.id, mailbox.id));
+      mailbox.domainId = domain.id;
+    }
+    return { mailbox, unknownRecipient: null };
   }
 
   const address = addresses[0] as string;

@@ -4,7 +4,7 @@ import { WorkspaceMark } from "@/components/workspace-logo";
 import {
   AddressBook, Archive, CaretDown, CaretUpDown, ChatCircleText, CodeBlock, ClockCountdown, Desktop, EnvelopeSimple, FileText, Gear, Lightning, LockSimple,
   MagnifyingGlass, Megaphone, Moon, Palette, PaperPlaneTilt, PencilSimple, Plus, ShieldWarning, ShoppingBag, SignOut, Star, Sun,
-  Timer, Tray, Trash, UserCircle, UsersThree, DotsThree,
+  Timer, Tray, TrayArrowDown, Trash, UserCircle, UsersThree, DotsThree,
   BellRinging,
 } from "@phosphor-icons/react";
 import Link from "next/link";
@@ -38,6 +38,7 @@ import { authClient } from "@/core/client/auth-client";
 import { clientExtensions } from "@/core/client/extensions";
 import { notifyError } from "@/core/client/notify";
 import { cn } from "@/lib/utils";
+import { openImportDialog } from "./import-panel";
 import { SenderAvatar } from "./sender-avatar";
 import { LabelDialog } from "./label-dialog";
 import { LabelIcon } from "./label-style";
@@ -390,6 +391,7 @@ export function MailSidebar({
               <MenuPopup align="start" side="top" className="min-w-56">
                 <MenuLinkItem render={<Link href="/settings" />}><Gear /> Settings</MenuLinkItem>
                 <MenuLinkItem render={<Link href="/settings?tab=notifications" />}><BellRinging /> Notifications</MenuLinkItem>
+                <MenuItem onClick={openImportDialog}><TrayArrowDown /> Import mail</MenuItem>
                 <MenuItem onClick={() => setFeedbackOpen(true)}><ChatCircleText /> Send feedback</MenuItem>
                 {HomeMenuItem && <HomeMenuItem />}
                 <MenuSub>

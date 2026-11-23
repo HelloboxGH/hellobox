@@ -14,6 +14,7 @@ import { postmarkActions } from "./actions/postmark";
 import { workspacesActions } from "./actions/workspaces";
 import { composeActions } from "./actions/compose";
 import { health } from "./actions/health";
+import { importActions } from "./actions/imports";
 import { sesActions } from "./actions/ses";
 import { threadActions } from "./actions/threads";
 import { vaultActions } from "./actions/vault";
@@ -25,6 +26,7 @@ export const allActions = {
   ...aiActions,
   ...campaignActions,
   ...domainClaimActions,
+  ...importActions,
   ...mailgunActions,
   ...notificationActions,
   ...onboardingActions,

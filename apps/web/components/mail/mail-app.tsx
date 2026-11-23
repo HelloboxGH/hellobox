@@ -1,6 +1,6 @@
 "use client";
 
-import { EnvelopeOpen, PencilSimple, Warning, X } from "@phosphor-icons/react";
+import { EnvelopeOpen, PencilSimple, TrayArrowDown, Warning, X } from "@phosphor-icons/react";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { PROVIDER_INFO } from "@hellobox/providers/types";
@@ -24,6 +24,7 @@ import { clientExtensions } from "@/core/client/extensions";
 import { MailboxSetup, needsMailboxSetup } from "./mailbox-setup";
 import { CommandPalette } from "./command-palette";
 import { Composer } from "./composer";
+import { ImportDialog, openImportDialog } from "./import-panel";
 import { Reader } from "./reader";
 import { MailSidebar } from "./sidebar";
 import { ThreadList } from "./thread-list";
@@ -70,6 +71,8 @@ function ConnectPrompt({ data }: { data: Bootstrap }) {
             )}
           </div>
         )}
+        {/* Old mail can come over before any provider is connected. */}
+        <Button variant="ghost" onClick={openImportDialog}><TrayArrowDown /> Or import your old mail first</Button>
       </EmptyContent>
     </Empty>
   );
@@ -376,7 +379,7 @@ function App() {
                   </EmptyDescription>
                 </EmptyHeader>
               </Empty>
-            ) : showConnect ? (
+            ) : showConnect && data.mailboxes.length === 0 ? (
               <ConnectPrompt data={data} />
             ) : (
               <ThreadList
@@ -454,6 +457,7 @@ function App() {
           }}
         />
       )}
+      <ImportDialog data={data} onChanged={refresh} />
       {compose && (
         <Composer
           key={compose.key}

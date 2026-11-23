@@ -15,7 +15,7 @@ export async function readableMailboxIds(workspaceId: string, userId: string) {
       .select({ id: mailboxes.id })
       .from(mailboxMembers)
       .innerJoin(mailboxes, eq(mailboxes.id, mailboxMembers.mailboxId))
-      .innerJoin(domains, eq(domains.id, mailboxes.domainId))
+      .leftJoin(domains, eq(domains.id, mailboxes.domainId))
       .where(
         and(
           eq(mailboxMembers.userId, userId),
@@ -27,7 +27,7 @@ export async function readableMailboxIds(workspaceId: string, userId: string) {
     db
       .select({ id: mailboxes.id })
       .from(mailboxes)
-      .innerJoin(domains, eq(domains.id, mailboxes.domainId))
+      .leftJoin(domains, eq(domains.id, mailboxes.domainId))
       .where(and(eq(mailboxes.workspaceId, workspaceId), eq(mailboxes.personalUserId, userId), shownDomain())),
   ]);
   return [...new Set([...assigned, ...personal].map((row) => row.id))];
@@ -37,7 +37,7 @@ export async function canReadMailbox(workspaceId: string, userId: string, mailbo
   const [row] = await getDb()
     .select({ id: mailboxes.id })
     .from(mailboxes)
-    .innerJoin(domains, eq(domains.id, mailboxes.domainId))
+    .leftJoin(domains, eq(domains.id, mailboxes.domainId))
     .leftJoin(mailboxMembers, and(eq(mailboxMembers.mailboxId, mailboxes.id), eq(mailboxMembers.userId, userId)))
     .where(
       and(

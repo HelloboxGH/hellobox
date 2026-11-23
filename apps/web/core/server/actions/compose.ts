@@ -161,11 +161,11 @@ export const sendMessage = workspaceAction("/mail/send")
       throw badRequest("Add at least one recipient");
     }
     const [sender] = await getDb()
-      .select({ mailboxRemovedAt: mailboxes.removedAt, isCatchAll: mailboxes.isCatchAll, domainRemovedAt: domains.removedAt })
+      .select({ mailboxRemovedAt: mailboxes.removedAt, isCatchAll: mailboxes.isCatchAll, domainId: domains.id, domainRemovedAt: domains.removedAt })
       .from(mailboxes)
-      .innerJoin(domains, eq(domains.id, mailboxes.domainId))
+      .leftJoin(domains, eq(domains.id, mailboxes.domainId))
       .where(eq(mailboxes.id, input.mailboxId));
-    const stopped = sender && sendBlockedReason({ removedAt: sender.mailboxRemovedAt, isCatchAll: sender.isCatchAll }, { removedAt: sender.domainRemovedAt });
+    const stopped = sender && sendBlockedReason({ removedAt: sender.mailboxRemovedAt, isCatchAll: sender.isCatchAll }, sender.domainId ? { removedAt: sender.domainRemovedAt } : null);
     if (stopped) throw badRequest(stopped);
     // A sandbox (the public demo) answers right away instead of failing in the outbox later.
     const refusal = await getExtensions().mail?.beforeSend?.({

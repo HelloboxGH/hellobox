@@ -218,6 +218,13 @@
       "when": 1795424946072,
       "tag": "0030_mailbox_encryption",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1795431005021,
+      "tag": "0031_mail_import",
+      "breakpoints": true
     }
   ]
 }

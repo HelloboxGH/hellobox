@@ -383,9 +383,10 @@ export const mailboxes = pgTable(
     workspaceId: text("workspace_id")
       .notNull()
       .references(() => workspaces.id, { onDelete: "cascade" }),
-    domainId: text("domain_id")
-      .notNull()
-      .references(() => domains.id, { onDelete: "cascade" }),
+    // Unset for a mailbox made by an import before its domain was in HelloBox. It holds the
+    // imported mail and can't send or receive; adding the address on a domain later gives it
+    // the domain, so the history and new mail end up together.
+    domainId: text("domain_id").references(() => domains.id, { onDelete: "cascade" }),
     address: text("address").notNull(),
     displayName: text("display_name"),
     isCatchAll: boolean("is_catch_all").notNull().default(false),
@@ -427,6 +428,49 @@ type WrappedKey = {
   iv: string;
   data: string;
 };
+
+// Mail brought in from another service as an MBOX or EML file. The file is uploaded
+// straight to storage, the worker reads it one email at a time, and it's deleted after.
+export const importStatusEnum = pgEnum("import_status", [
+  "uploading",
+  "queued",
+  "running",
+  "done",
+  "failed",
+  "cancelled",
+]);
+
+export const imports = pgTable(
+  "imports",
+  {
+    id: id(),
+    workspaceId: text("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    mailboxId: text("mailbox_id")
+      .notNull()
+      .references(() => mailboxes.id, { onDelete: "cascade" }),
+    filename: text("filename").notNull(),
+    format: text("format").$type<"mbox" | "eml">().notNull(),
+    storageKey: text("storage_key").notNull(),
+    multipartUploadId: text("multipart_upload_id"),
+    size: bigint("size", { mode: "number" }).notNull().default(0),
+    status: importStatusEnum("status").notNull().default("uploading"),
+    // Bytes of the file read so far, for progress, and what became of each email.
+    bytesRead: bigint("bytes_read", { mode: "number" }).notNull().default(0),
+    imported: integer("imported").notNull().default(0),
+    skipped: integer("skipped").notNull().default(0),
+    failed: integer("failed").notNull().default(0),
+    error: text("error"),
+    createdAt: createdAt(),
+    startedAt: time("started_at"),
+    finishedAt: time("finished_at"),
+  },
+  (t) => [index("imports_workspace_idx").on(t.workspaceId, t.createdAt)],
+);
 
 export const mailboxMembers = pgTable(
   "mailbox_members",

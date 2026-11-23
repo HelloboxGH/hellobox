@@ -57,7 +57,7 @@ export const vaultStatus = userAction("/account/vault").handler(async ({ ctx }) 
     })
     .from(mailboxes)
     .innerJoin(workspaces, eq(workspaces.id, mailboxes.workspaceId))
-    .innerJoin(domains, eq(domains.id, mailboxes.domainId))
+    .leftJoin(domains, eq(domains.id, mailboxes.domainId))
     .where(and(eq(mailboxes.personalUserId, ctx.user.id), isNull(mailboxes.removedAt)))
     .orderBy(mailboxes.address);
   return {

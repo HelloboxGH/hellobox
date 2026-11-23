@@ -1,6 +1,7 @@
 import {
   attachments,
   getDb,
+  imports,
   messages,
   connections,
   threads,
@@ -93,6 +94,23 @@ async function cleanAbandonedUploads() {
   }
 }
 
+// An import whose upload never finished (the tab was closed) is dropped after two days.
+async function cleanAbandonedImports() {
+  const db = getDb();
+  const stale = await db
+    .select({ id: imports.id, storageKey: imports.storageKey, multipartUploadId: imports.multipartUploadId })
+    .from(imports)
+    .where(and(eq(imports.status, "uploading"), lt(imports.createdAt, new Date(Date.now() - 2 * 24 * 60 * 60 * 1000))))
+    .limit(200);
+  for (const row of stale) {
+    if (row.multipartUploadId) await abortMultipartUpload(row.storageKey, row.multipartUploadId).catch(() => undefined);
+    await db
+      .update(imports)
+      .set({ status: "cancelled", multipartUploadId: null, finishedAt: new Date(), error: "The upload didn't finish" })
+      .where(eq(imports.id, row.id));
+  }
+}
+
 export async function purgeWorkspaceFiles(workspaceId: string) {
   if (!isStorageConfigured()) return;
   await Promise.all(workspacePrefixes(workspaceId).map(deletePrefix));
@@ -179,6 +197,7 @@ export async function runMaintenance(
   if (isStorageConfigured()) {
     await purgeOldThreads();
     await cleanAbandonedUploads();
+    await cleanAbandonedImports();
     await countOldRawFiles();
   }
 }
