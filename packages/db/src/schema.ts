@@ -392,6 +392,9 @@ export const mailboxes = pgTable(
     // Set for a personal mailbox: only this person reads it, and admins can't assign it.
     // Unset means shared, readable by whoever it's assigned to.
     personalUserId: text("personal_user_id").references(() => user.id, { onDelete: "set null" }),
+    // Mail is sealed to the owner's vault key as it arrives, so the server stores only
+    // ciphertext for the body. Personal mailboxes only, for now.
+    encrypted: boolean("encrypted").notNull().default(false),
     // Deleted by an admin. The row stays so its conversations do. New mail to the address
     // is treated as mail to an address with no mailbox. Adding the address again clears it.
     removedAt: time("removed_at"),
@@ -404,6 +407,26 @@ export const mailboxes = pgTable(
     ),
   ],
 );
+
+// A person's encryption keys. The private key is wrapped with their passphrase and with a
+// recovery code, both turned into keys on their device, so the server can't unwrap it.
+export const vaults = pgTable("vaults", {
+  userId: text("user_id")
+    .primaryKey()
+    .references(() => user.id, { onDelete: "cascade" }),
+  keyId: text("key_id").notNull(),
+  publicKey: text("public_key").notNull(),
+  wrappedKey: jsonb("wrapped_key").$type<WrappedKey>().notNull(),
+  recoveryWrappedKey: jsonb("recovery_wrapped_key").$type<WrappedKey>().notNull(),
+  createdAt: createdAt(),
+  updatedAt: time("updated_at").notNull().defaultNow(),
+});
+
+type WrappedKey = {
+  kdf: { name: "argon2id"; m: number; t: number; p: number; salt: string };
+  iv: string;
+  data: string;
+};
 
 export const mailboxMembers = pgTable(
   "mailbox_members",
@@ -516,6 +539,9 @@ export const messages = pgTable(
     snippet: text("snippet").notNull().default(""),
     textBody: text("text_body"),
     htmlBody: text("html_body"),
+    // For an encrypted mailbox: the text and HTML bodies sealed to the readers' vault keys
+    // (see packages/mail/src/vault.ts). textBody, htmlBody and snippet are empty then.
+    sealedBody: text("sealed_body"),
     rawKey: text("raw_key"),
     // Bytes of the stored original, so freeing it gives the space back to the workspace.
     rawSize: bigint("raw_size", { mode: "number" }).notNull().default(0),

@@ -2,7 +2,7 @@
 
 import {
   Archive, ArrowArcLeft, ArrowArcRight, ArrowBendDoubleUpLeft, ArrowLeft, CheckCircle, ClockCountdown, DownloadSimple,
-  CaretDown, DotsThree, EnvelopeSimple, FileHtml, FilePdf, ImageSquare, Lightning, NotePencil, Question, Robot, SealCheck, ShieldWarning,
+  CaretDown, DotsThree, EnvelopeSimple, FileHtml, FilePdf, ImageSquare, Lightning, LockSimple, NotePencil, Question, Robot, SealCheck, ShieldWarning,
   Sparkle, Star, Tag, Timer, Trash, Tray, WarningCircle,
 } from "@phosphor-icons/react";
 import Link from "next/link";
@@ -25,6 +25,8 @@ import { Tooltip, TooltipPopup, TooltipTrigger } from "@/components/ui/tooltip";
 import { type Bootstrap, call, type ThreadDetail, type ThreadMessage } from "@/core/client/api";
 import { toastManager } from "@/components/ui/toast";
 import { errorMessage, notify, notifyError } from "@/core/client/notify";
+import { openSealed, useVault } from "@/core/client/vault";
+import { UnlockVault } from "@/components/settings/encryption";
 import { downloadHtml, exportFilename, printAsPdf, threadDocument } from "./export";
 import { LabelChip, LabelIcon } from "./label-style";
 import { IconAction } from "./icon-action";
@@ -292,7 +294,15 @@ function MessageView({
             Remote images are blocked, so the sender can&apos;t see when you open this.
           </Callout>
         )}
-        {message.htmlBody ? (
+        {message.sealedBody && !message.locked && (
+          <p className="flex items-center gap-1.5 text-muted-foreground text-xs">
+            <LockSimple aria-hidden />
+            Encrypted. Search, AI and agents can&apos;t read this message.
+          </p>
+        )}
+        {message.locked ? (
+          <UnlockVault />
+        ) : message.htmlBody ? (
           <EmailFrame html={message.htmlBody} allowRemote={showImages} />
         ) : (
           <p className="whitespace-pre-wrap text-foreground text-sm leading-relaxed">{message.textBody}</p>
@@ -327,6 +337,31 @@ function MessageView({
   );
 }
 
+async function openMessages(detail: ThreadDetail): Promise<ThreadDetail> {
+  if (!detail.messages.some((message) => message.sealedBody)) return detail;
+  const messages = await Promise.all(
+    detail.messages.map(async (message) => {
+      if (!message.sealedBody) return message;
+      const content = await openSealed(message.sealedBody).catch(() => null);
+      if (!content) return { ...message, locked: true };
+      const html = content.html
+        ? content.html.replace(/(["'])cid:([^"']+)\1/gi, (match, q: string, id: string) =>
+            message.inlineImages[id] ? `${q}${message.inlineImages[id]}${q}` : match)
+        : null;
+      return {
+        ...message,
+        locked: false,
+        textBody: content.text,
+        htmlBody: html,
+        snippet: (content.text ?? "").slice(0, 200),
+        hasRemoteImages: html ? /<img[^>]+src=["']?https?:/i.test(html) || /url\(\s*["']?https?:/i.test(html) : false,
+        attachments: message.attachments.filter((file) => !(file.contentId && content.html?.includes(`cid:${file.contentId}`))),
+      };
+    }),
+  );
+  return { ...detail, messages };
+}
+
 const quote = (message: ThreadMessage) =>
   `<p><br></p><blockquote>On ${escapeHtml(formatFullTime(message.sentAt))}, ${escapeHtml(message.fromAddress)} wrote:<br>${escapeHtml(message.textBody ?? message.snippet).replace(/\n/g, "<br>")}</blockquote>`;
 
@@ -351,7 +386,16 @@ export function Reader({
   onChanged: () => void;
   onToggleAi: () => void;
 }) {
+  const [loaded, setLoaded] = useState<ThreadDetail | null>(null);
   const [detail, setDetail] = useState<ThreadDetail | null>(null);
+  const vault = useVault();
+  // Sealed messages are opened here, so replies, quotes and downloads see the plain text.
+  useEffect(() => {
+    let current = true;
+    if (!loaded) return;
+    openMessages(loaded).then((opened) => { if (current) setDetail(opened); });
+    return () => { current = false; };
+  }, [loaded, vault.key]);
   const [failed, setFailed] = useState<string | null>(null);
   const [note, setNote] = useState("");
   // Messages whose remote images this person loaded, so a download shows what they saw.
@@ -366,7 +410,7 @@ export function Reader({
     () =>
       call("/threads/get", { id: threadId })
         .then((next) => {
-          setDetail(next);
+          setLoaded(next);
           setFailed(null);
         })
         .catch((error: unknown) => setFailed(errorMessage(error))),

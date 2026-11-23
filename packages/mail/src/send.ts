@@ -11,6 +11,7 @@ import {
 import { touchWorkspace } from "./activity";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { markIfRoleRevoked, providerForConnection } from "./connections";
+import { bodyColumns, sealingKeysForMailbox } from "./encryption";
 import { deliveryStatusFor, mergeDelivery, summarizeDelivery, suppressionReason } from "./delivery";
 import { suppressFromEvent } from "./suppressions";
 import { isWorkspaceSuspended } from "./workspaces";
@@ -122,7 +123,10 @@ export async function sendOutbox(outboxId: string) {
   const cc = item.ccRecipients.map(parseAddress);
   const bcc = item.bccRecipients.map(parseAddress);
   const participants = [{ address: row.address }, ...to, ...cc];
-  const snippet = makeSnippet(null, item.html);
+  // Sent mail in an encrypted mailbox is stored sealed too.
+  const sealingKeys = await sealingKeysForMailbox(item.mailboxId);
+  const snippet = sealingKeys ? "" : makeSnippet(null, item.html);
+  const body = await bodyColumns({ text: null, html: item.html }, sealingKeys);
   const now = new Date();
 
   const threadId = await db.transaction(async (tx) => {
@@ -177,7 +181,7 @@ export async function sendOutbox(outboxId: string) {
         bccRecipients: bcc,
         subject: item.subject,
         snippet,
-        htmlBody: item.html,
+        ...body,
         deliveryStatus: "sent",
         agentTokenId: item.agentTokenId,
         sentByUserId: item.userId,
@@ -205,6 +209,8 @@ export async function sendOutbox(outboxId: string) {
       .update(outbox)
       .set({
         status: "sent",
+        // The queued copy is plaintext. Once sent, the sealed message is the only copy.
+        ...(sealingKeys ? { html: "" } : {}),
         providerMessageId,
         messageId: message?.id ?? null,
         threadId,

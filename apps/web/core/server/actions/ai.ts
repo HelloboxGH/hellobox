@@ -1,7 +1,7 @@
 import { getExtensions } from "@/core/extensions";
 import { decrypt, encrypt } from "@hellobox/config";
 import { aiProviders, getDb, messages, threads } from "@hellobox/db";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { badRequest, notFound } from "nezt";
 import { z } from "zod";
 import { userAction, workspaceAction } from "../builder";
@@ -159,6 +159,7 @@ export const draftWithAi = workspaceAction("/ai/draft")
           subject: messages.subject,
           text: messages.textBody,
           snippet: messages.snippet,
+          sealed: sql<boolean>`${messages.sealedBody} is not null`,
           sentAt: messages.sentAt,
         })
         .from(messages)
@@ -168,7 +169,7 @@ export const draftWithAi = workspaceAction("/ai/draft")
         .slice(-10)
         .map(
           (row) =>
-            `<email from="${row.from}" date="${row.sentAt.toISOString()}" subject="${row.subject.replace(/"/g, "'")}">\n${(row.text ?? row.snippet).slice(0, 8000)}\n</email>`,
+            `<email from="${row.from}" date="${row.sentAt.toISOString()}" subject="${row.subject.replace(/"/g, "'")}">\n${row.sealed ? "[Encrypted, not available]" : (row.text ?? row.snippet).slice(0, 8000)}\n</email>`,
         )
         .join("\n");
     }

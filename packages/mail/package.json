@@ -10,7 +10,8 @@
     "./template": "./src/template.ts",
     "./csv": "./src/csv.ts",
     "./domain-names": "./src/domain-names.ts",
-    "./plans": "./src/plans.ts"
+    "./plans": "./src/plans.ts",
+    "./vault": "./src/vault.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit"
@@ -32,6 +33,7 @@
     "@hellobox/queue": "workspace:*",
     "@hellobox/resend": "workspace:*",
     "@hellobox/storage": "workspace:*",
+    "@noble/hashes": "1.8.0",
     "drizzle-orm": "^0.45.4",
     "ioredis": "^6.0.0",
     "react": "19.3.0",

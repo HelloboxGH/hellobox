@@ -211,6 +211,13 @@
       "when": 1795115866413,
       "tag": "0029_cloud_split",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1795424946072,
+      "tag": "0030_mailbox_encryption",
+      "breakpoints": true
     }
   ]
 }

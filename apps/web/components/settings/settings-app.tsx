@@ -1,7 +1,7 @@
 "use client";
 
 import {
-  ArrowElbowDownRight, ArrowLeft, BellRinging, ChatCircleText, Check, Copy, DownloadSimple, Globe, Key, DotsThree, ListChecks, LockSimple, LockSimpleOpen, Play, Plugs, Prohibit, Robot, ShieldCheck, Sparkle,
+  ArrowElbowDownRight, ArrowLeft, BellRinging, ChatCircleText, Check, Copy, DownloadSimple, Globe, Key, LockKey, DotsThree, ListChecks, LockSimple, LockSimpleOpen, Play, Plugs, Prohibit, Robot, ShieldCheck, Sparkle,
   Trash, Tray, UserCircle, UsersThree,
 } from "@phosphor-icons/react";
 import Link from "next/link";
@@ -16,6 +16,7 @@ import { PasswordInput } from "@/components/password-input";
 import { ProfilePhoto } from "@/components/profile-photo";
 import { WorkspaceLogoPicker } from "@/components/workspace-logo";
 import { NotificationsTab } from "./notifications-tab";
+import { EncryptionTab } from "./encryption";
 import { AppProviders } from "@/components/providers";
 import { AccentPicker } from "@/components/accent-picker";
 import { Segmented } from "@/components/segmented";
@@ -1483,6 +1484,7 @@ const TABS = [
   { value: "mailboxes", label: "Mailboxes", icon: <Tray /> },
   { value: "team", label: "Team", icon: <UsersThree /> },
   { value: "notifications", label: "Notifications", icon: <BellRinging /> },
+  { value: "encryption", label: "Encryption", icon: <LockKey /> },
   { value: "rules", label: "Rules", icon: <ListChecks /> },
   { value: "suppressions", label: "Suppressed", icon: <Prohibit /> },
   { value: "ai", label: "AI", icon: <Sparkle /> },
@@ -1537,6 +1539,7 @@ function Settings() {
             <TabsPanel value="mailboxes"><MailboxesTab data={data} refresh={refresh} /></TabsPanel>
             <TabsPanel value="team"><TeamTab data={data} refresh={refresh} /></TabsPanel>
             <TabsPanel value="notifications"><NotificationsTab data={data} /></TabsPanel>
+            <TabsPanel value="encryption"><EncryptionTab /></TabsPanel>
             <TabsPanel value="rules"><RulesTab admin={data.role !== "member"} /></TabsPanel>
             <TabsPanel value="suppressions"><SuppressionsTab admin={data.role !== "member"} /></TabsPanel>
             <TabsPanel value="ai"><AiTab /></TabsPanel>

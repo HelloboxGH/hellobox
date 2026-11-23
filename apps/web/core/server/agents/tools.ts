@@ -119,7 +119,10 @@ const summarizeMessage = (message: ThreadMessage) => ({
   replyTo: message.replyTo,
   subject: message.subject,
   sentAt: message.sentAt,
-  text: message.textBody ?? htmlToText(message.htmlBody ?? ""),
+  // Encrypted mail can only be opened on the owner's device, so agents never see its body.
+  text: message.sealedBody
+    ? "[Encrypted. The body can only be read in HelloBox by the mailbox owner.]"
+    : (message.textBody ?? htmlToText(message.htmlBody ?? "")),
   attachments: message.attachments.map((file) => ({ filename: file.filename, size: file.size })),
   deliveryStatus: message.deliveryStatus,
   sentByAgent: Boolean(message.agentTokenId),

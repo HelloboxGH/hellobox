@@ -3,6 +3,7 @@ export * from "./bounce";
 export * from "./campaigns";
 export * from "./categorize";
 export * from "./cloudflare";
+export * from "./encryption";
 export * from "./connections";
 export * from "./delivery";
 export * from "./domain-names";

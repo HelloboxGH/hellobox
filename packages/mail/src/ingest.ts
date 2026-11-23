@@ -17,6 +17,7 @@ import {
 } from "@hellobox/db";
 import type { InboundHint, ProviderKind } from "@hellobox/providers";
 import {
+  deleteObject,
   messageKey,
   objectSize,
   readObject,
@@ -24,6 +25,7 @@ import {
 } from "@hellobox/storage";
 import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { applyRules, categorize } from "./categorize";
+import { bodyColumns, sealingKeysFor } from "./encryption";
 import {
   markIfRoleRevoked,
   providerFor,
@@ -298,6 +300,9 @@ export async function ingestEmail(connectionId: string, emailId: string) {
   const inReplyTo = parseMessageIds(email.headers["in-reply-to"])[0] ?? null;
   const subject = email.subject;
 
+  // Set for an encrypted mailbox. Mail sent to an unknown address isn't the owner's.
+  const sealingKeys = unknownRecipient ? null : await sealingKeysFor(mailbox);
+
   // Files first, so that a failed download retries before anything is visible.
   let rawKey: string | null = null;
   let rawSize = 0;
@@ -306,6 +311,12 @@ export async function ingestEmail(connectionId: string, emailId: string) {
     rawKey = messageKey(workspaceId, emailId, "raw.eml");
     rawSize = await copyToStorage(email.raw.open, rawKey, "message/rfc822");
     if (rawSize <= MAX_SCAN_BYTES) scanBytes = await collectBytes(await readObject(rawKey));
+    if (sealingKeys) {
+      // The original is the whole email in the clear. Scanned in memory, then not kept.
+      await deleteObject(rawKey);
+      rawKey = null;
+      rawSize = 0;
+    }
   }
 
   const stored: (typeof attachments.$inferInsert)[] = [];
@@ -363,7 +374,12 @@ export async function ingestEmail(connectionId: string, emailId: string) {
     }).category;
   const folder = verdict.isSpam ? "spam" : (action.folder ?? "inbox");
   const participants = [from, ...to, ...cc];
-  const snippet = makeSnippet(email.text, email.html);
+  // An encrypted message has no readable snippet: the list shows the subject only.
+  const snippet = sealingKeys ? "" : makeSnippet(email.text, email.html);
+  const body = await bodyColumns(
+    { text: email.text, html: email.html ? sanitizeEmailHtml(email.html) : null },
+    sealingKeys,
+  );
 
   const threadId = await db.transaction(async (tx) => {
     // Quarantined mail never joins a conversation: it expires on its own, and mustn't take
@@ -436,8 +452,7 @@ export async function ingestEmail(connectionId: string, emailId: string) {
         replyTo: email.replyTo,
         subject,
         snippet,
-        textBody: email.text,
-        htmlBody: email.html ? sanitizeEmailHtml(email.html) : null,
+        ...body,
         rawKey,
         rawSize,
         storageCounted: !quarantined,

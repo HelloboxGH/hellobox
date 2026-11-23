@@ -267,6 +267,12 @@ export const getThread = workspaceAction("/threads/get")
           toUnknownRecipient: Boolean(message.spamReasons?.includes(SPAM_REASONS.unknownRecipient)),
           htmlBody: html,
           hasRemoteImages: html ? hasRemoteImages(html) : false,
+          // Sealed and not opened yet. The browser opens it with the person's key.
+          locked: Boolean(message.sealedBody),
+          // A sealed body is opened in the browser, which swaps cid: images for these.
+          inlineImages: message.sealedBody
+            ? Object.fromEntries(own.flatMap((file) => (file.contentId ? [[file.contentId, `/api/attachments/${file.id}?inline=1`]] : [])))
+            : {},
           imagesAllowed:
             thread.folder !== "spam" &&
             (trusted.has(message.fromAddress) || trusted.has(domainOf(message.fromAddress))),
@@ -274,6 +280,7 @@ export const getThread = workspaceAction("/threads/get")
             .filter((file) => !(file.contentId && message.htmlBody?.includes(`cid:${file.contentId}`)))
             .map((file) => ({
               id: file.id,
+              contentId: file.contentId,
               filename: file.filename,
               contentType: file.contentType,
               size: file.size,

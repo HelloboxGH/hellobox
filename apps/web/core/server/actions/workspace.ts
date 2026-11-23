@@ -500,7 +500,7 @@ export const setMailboxPersonal = workspaceAction("/mailboxes/set-personal")
   .handler(async ({ input, ctx }) => {
     const db = getDb();
     const [mailbox] = await db
-      .select({ id: mailboxes.id, address: mailboxes.address, personalUserId: mailboxes.personalUserId })
+      .select({ id: mailboxes.id, address: mailboxes.address, personalUserId: mailboxes.personalUserId, encrypted: mailboxes.encrypted })
       .from(mailboxes)
       .where(and(eq(mailboxes.id, input.id), eq(mailboxes.workspaceId, ctx.workspace.id)));
     if (!mailbox) throw notFound("Mailbox");
@@ -509,6 +509,8 @@ export const setMailboxPersonal = workspaceAction("/mailboxes/set-personal")
       if (mailbox.personalUserId !== ctx.user.id) {
         throw forbidden("Only the person this mailbox belongs to can share it");
       }
+      // Teammates couldn't open mail sealed to this person's key.
+      if (mailbox.encrypted) throw badRequest("Turn off encryption for this mailbox before sharing it");
       await db.update(mailboxes).set({ personalUserId: null }).where(eq(mailboxes.id, mailbox.id));
       await db.insert(mailboxMembers).values({ mailboxId: mailbox.id, userId: ctx.user.id }).onConflictDoNothing();
       await shareWithAdmins(ctx.workspace.id, [mailbox.id]);
@@ -900,6 +902,8 @@ export const exportData = adminAction("/account/export").handler(async ({ ctx })
         subject: messages.subject,
         text: messages.textBody,
         html: messages.htmlBody,
+        // Ciphertext for encrypted mailboxes. Opens with the owner's key, never on the server.
+        sealedBody: messages.sealedBody,
         sentAt: messages.sentAt,
       })
       .from(messages)

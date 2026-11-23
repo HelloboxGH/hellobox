@@ -69,11 +69,12 @@ export async function shareWithAdmins(workspaceId: string, mailboxIds: string[],
 }
 
 // When someone leaves, their personal mailboxes stay with the workspace: they become
-// shared and go to the owner only, since nobody else could read them before.
+// shared and go to the owner only, since nobody else could read them before. Mail that was
+// sealed to the person's key stays sealed; new mail is stored in the clear.
 export async function releasePersonalMailboxes(workspaceId: string, userId: string) {
   const released = await getDb()
     .update(mailboxes)
-    .set({ personalUserId: null })
+    .set({ personalUserId: null, encrypted: false })
     .where(and(eq(mailboxes.workspaceId, workspaceId), eq(mailboxes.personalUserId, userId)))
     .returning({ id: mailboxes.id });
   await shareWithAdmins(workspaceId, released.map((row) => row.id), ["owner"]);

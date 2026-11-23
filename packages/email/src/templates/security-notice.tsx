@@ -1,6 +1,11 @@
 import { Callout, CtaButton, EmailLayout, formatDate, Muted, P, SITE_URL } from "../layout";
 
-export type SecurityChange = "password_changed" | "password_added" | "two_factor_disabled";
+export type SecurityChange =
+  | "password_changed"
+  | "password_added"
+  | "two_factor_disabled"
+  | "vault_passphrase_changed"
+  | "vault_deleted";
 
 const COPY: Record<SecurityChange, { subject: string; heading: string; body: string }> = {
   password_changed: {
@@ -12,6 +17,16 @@ const COPY: Record<SecurityChange, { subject: string; heading: string; body: str
     subject: "A password was added to your HelloBox account",
     heading: "You added a password",
     body: "A password was just added to your HelloBox account, so you can now sign in with your email too.",
+  },
+  vault_passphrase_changed: {
+    subject: "Your HelloBox encryption passphrase was changed",
+    heading: "Your encryption passphrase was changed",
+    body: "The passphrase that unlocks your encrypted mail was just changed. Your recovery code still works.",
+  },
+  vault_deleted: {
+    subject: "Your HelloBox encryption keys were deleted",
+    heading: "Your encryption keys were deleted",
+    body: "The keys for your encrypted mail were just deleted. Mail that was stored encrypted can no longer be opened, and new mail is stored unencrypted.",
   },
   two_factor_disabled: {
     subject: "Two-factor authentication was turned off",
