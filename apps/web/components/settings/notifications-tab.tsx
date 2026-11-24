@@ -208,16 +208,16 @@ export function NotificationsTab({ data, onboarding = false }: { data: Bootstrap
       </Section>
 
       <Section title="Add a channel">
-        <ul className="grid gap-3 sm:grid-cols-2">
+        <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           {adders.filter((adder) => !adder.hidden).map((adder) => {
             const Icon = KINDS[adder.kind].icon;
             return (
-              <li key={adder.kind} className="flex flex-col gap-3 rounded-xl border p-3">
+              <li key={adder.kind} className="flex min-w-0 flex-col gap-3 rounded-xl border p-3">
                 <div className="flex items-start gap-3">
                   <Icon className="mt-0.5 size-5 shrink-0 text-muted-foreground" />
                   <div className="min-w-0">
                     <p className="font-medium text-foreground text-sm">{KINDS[adder.kind].name}</p>
-                    <p className="text-muted-foreground text-xs">{adder.description}</p>
+                    <p className="break-words text-muted-foreground text-xs">{adder.description}</p>
                   </div>
                 </div>
                 {adder.actions.length > 0 && (

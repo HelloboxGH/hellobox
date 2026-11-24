@@ -33,7 +33,7 @@ export async function addProviderDomain(connectionId: string, workspaceId: strin
   if (kind === "ses") return addSesDomain(connectionId, workspaceId, domain);
   if (kind === "postmark") return addPostmarkDomain(connectionId, workspaceId, domain);
   if (kind === "mailgun") return addMailgunDomain(connectionId, workspaceId, domain);
-  throw new Error("Domains for this provider are added in its own dashboard");
+  return addResendReceivingDomain(connectionId, workspaceId, domain);
 }
 
 export async function providerDomainSetup(connectionId: string, workspaceId: string, domain: string) {

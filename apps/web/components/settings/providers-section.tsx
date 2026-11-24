@@ -252,14 +252,13 @@ function ResendConnection({ connection, data, refresh, admin, connectHref }: {
         </Alert>
       )}
       {connection.status === "active" && (
-        // Domains and their receiving are managed in Resend, apart from receiving on a subdomain.
         <DomainList
           connection={connection}
           data={data}
           admin={admin}
           refresh={refresh}
-          canAdd={false}
-          emptyText="No domains in this Resend account yet. Add one in Resend, then refresh."
+          canAdd
+          emptyText="No domains in this Resend account yet. Add one to start."
           receiving={(domain) => ({ on: domain.receivingEnabled })}
         />
       )}

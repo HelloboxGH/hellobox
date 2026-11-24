@@ -13,6 +13,7 @@ import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTi
 import { Kbd, KbdGroup } from "@/components/ui/kbd";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { Skeleton } from "@/components/ui/skeleton";
+import { authClient } from "@/core/client/auth-client";
 import { ApiError, type Bootstrap, call, clearWorkspaceId, getWorkspaceId, setWorkspaceId } from "@/core/client/api";
 import { refreshServiceWorker } from "@/core/client/push";
 import { AppTour } from "@/components/onboarding/app-tour";
@@ -190,7 +191,7 @@ const linkedThread = () => readLink().thread;
 
 function App() {
   const [data, setData] = useState<Bootstrap | null>(null);
-  const [failed, setFailed] = useState<string | null>(null);
+  const [failed, setFailed] = useState<{ message: string; access: boolean } | null>(null);
   const [filter, setFilterState] = useState<MailFilter>({ view: "inbox" });
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<string | null>(linkedThread);
@@ -242,7 +243,15 @@ function App() {
             window.location.reload();
             return;
           }
-          setFailed(errorMessage(error));
+          // Access errors come from a session that no longer matches a workspace: another
+          // account, a removed membership. Signing in again fixes them, so offer it.
+          const access = error instanceof ApiError && (error.status === 403 || error.status === 401);
+          setFailed({
+            message: access && /access to this workspace|sign in|unauthor/i.test(errorMessage(error))
+              ? "Your session doesn't match a workspace any more. Sign in again to continue."
+              : errorMessage(error),
+            access,
+          });
         }),
     [],
   );
@@ -330,9 +339,17 @@ function App() {
         <EmptyHeader>
           <EmptyMedia><Logo size={56} /></EmptyMedia>
           <EmptyTitle>We couldn&apos;t load your inbox</EmptyTitle>
-          <EmptyDescription>{failed}</EmptyDescription>
+          <EmptyDescription>{failed.message}</EmptyDescription>
         </EmptyHeader>
-        <EmptyContent><Button variant="outline" onClick={() => window.location.reload()}>Try again</Button></EmptyContent>
+        <EmptyContent className="flex-row justify-center gap-2">
+          <Button
+            variant={failed.access ? "default" : "ghost"}
+            onClick={() => authClient.signOut().catch(() => undefined).finally(() => { window.location.href = "/login"; })}
+          >
+            Sign in again
+          </Button>
+          {!failed.access && <Button variant="outline" onClick={() => window.location.reload()}>Try again</Button>}
+        </EmptyContent>
       </Empty>
     );
   }

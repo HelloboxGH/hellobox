@@ -170,9 +170,12 @@ function MessageDetails({ message }: { message: ThreadMessage }) {
 }
 
 function MessageView({
-  message, spam, showSender, showImages, onShowImages, onReply, onForward, onImagesAllowed,
+  message, collapsed, onToggle, spam, showSender, showImages, onShowImages, onReply, onForward, onImagesAllowed,
 }: {
   message: ThreadMessage;
+  // Older messages show one line until opened, like Gmail.
+  collapsed: boolean;
+  onToggle: () => void;
   spam: boolean;
   // Says which teammate sent a reply. Only worth saying when there's a team.
   showSender: boolean;
@@ -187,10 +190,37 @@ function MessageView({
   const senderDomain = message.fromAddress.slice(message.fromAddress.lastIndexOf("@") + 1).toLowerCase();
   const toUnknown = message.toUnknownRecipient;
   const [neverSpam, setNeverSpam] = useState(false);
+  if (collapsed) {
+    const preview = message.sealedBody
+      ? "Encrypted message"
+      : (message.textBody ?? (message.htmlBody ?? "").replace(/<(style|script)[\s\S]*?<\/\1>|<[^>]+>/gi, " "))
+          .replace(/\s+/g, " ").trim();
+    return (
+      <article>
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-expanded={false}
+          className="flex w-full items-center gap-3 py-3 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <SenderAvatar name={name} />
+          <span className="min-w-0 flex-1 truncate text-sm">
+            <span className="font-medium text-foreground">{name}</span>
+            {preview && <span className="text-muted-foreground"> · {preview}</span>}
+          </span>
+          <time dateTime={new Date(message.sentAt).toISOString()} className="shrink-0 text-muted-foreground text-xs">
+            {formatListTime(message.sentAt)}
+          </time>
+        </button>
+      </article>
+    );
+  }
   return (
     <article className="py-5">
       <header className="mb-3 flex items-start gap-3">
-        <SenderAvatar name={name} />
+        <button type="button" onClick={onToggle} aria-label="Collapse message" className="shrink-0 rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring">
+          <SenderAvatar name={name} />
+        </button>
         <div className="min-w-0 flex-1">
           <div className="flex items-baseline gap-2">
             <p className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-1.5 text-sm">
@@ -398,6 +428,8 @@ export function Reader({
   }, [loaded, vault.key]);
   const [failed, setFailed] = useState<string | null>(null);
   const [note, setNote] = useState("");
+  // Opened or closed by hand. Otherwise only the newest message is open.
+  const [toggled, setToggled] = useState<ReadonlySet<string>>(new Set());
   // Messages whose remote images this person loaded, so a download shows what they saw.
   const [imagesLoaded, setImagesLoaded] = useState<ReadonlySet<string>>(new Set());
   const [team, setTeam] = useState<Awaited<ReturnType<typeof call<"/members/list">>>["members"]>([]);
@@ -698,10 +730,16 @@ export function Reader({
             </div>
           )}
           <div className="divide-y">
-            {messages.map((message) => (
+            {messages.map((message, index) => (
               <MessageView
                 key={message.id}
                 message={message}
+                collapsed={(index !== messages.length - 1) !== toggled.has(message.id)}
+                onToggle={() => setToggled((ids) => {
+                  const next = new Set(ids);
+                  if (!next.delete(message.id)) next.add(message.id);
+                  return next;
+                })}
                 spam={thread.folder === "spam"}
                 showSender={shared}
                 showImages={showsImages(message)}

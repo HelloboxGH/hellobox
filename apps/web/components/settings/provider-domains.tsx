@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowClockwise, ArrowElbowDownRight, Check, HourglassMedium, Plus, Warning } from "@phosphor-icons/react";
+import { ArrowClockwise, ArrowElbowDownRight, Check, DotsThree, HourglassMedium, Plus, Warning } from "@phosphor-icons/react";
 import { type FormEvent, type ReactNode, useState } from "react";
 import { groupDomains, subdomainProblem } from "@hellobox/mail/domain-names";
 import { PROVIDER_INFO, type ProviderKind } from "@hellobox/providers/types";
@@ -11,6 +11,7 @@ import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogPanel, Dia
 import { Field, FieldDescription, FieldError, FieldLabel } from "@/components/ui/field";
 import { Form } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { Menu, MenuItem, MenuPopup, MenuTrigger } from "@/components/ui/menu";
 import { Switch } from "@/components/ui/switch";
 import { type Bootstrap, call } from "@/core/client/api";
 import { notify, notifyInfo } from "@/core/client/notify";
@@ -121,38 +122,53 @@ export function DomainList({ connection, data, admin, refresh, receiving, setRec
           const groupReceives = grouped.some((row) => (row.parent ?? row.domain.name) === groupRoot && receiving(row.domain).on);
           return (
             <li key={domain.id}>
-              <div className={`flex flex-wrap items-center gap-x-3 gap-y-2 px-3 py-2.5 ${parent ? "ps-8" : ""}`}>
-                <span className="flex min-w-0 flex-1 basis-44 flex-wrap items-center gap-2">
-                  {parent && <ArrowElbowDownRight className="-ms-5 size-3.5 shrink-0 text-muted-foreground" aria-hidden />}
-                  <span className="truncate font-medium text-foreground text-sm">{domain.name}</span>
-                  {verified
-                    ? <Badge variant="success" size="sm">Verified</Badge>
-                    : <Badge variant="warning" size="sm">Waiting for DNS</Badge>}
-                  {state.waiting && <Badge variant="warning" size="sm">Receiving waits for the MX</Badge>}
-                  {waitingForMail && <Badge variant="info" size="sm"><HourglassMedium /> Waiting for the first email…</Badge>}
-                  {state.on && domain.hasMail && <Badge variant="outline" size="sm">Receiving</Badge>}
+              <div className={`flex items-center gap-2 px-3 py-2.5 ${parent ? "ps-8" : ""}`}>
+                <span className="min-w-0 flex-1">
+                  <span className="flex items-center gap-1.5">
+                    {parent && <ArrowElbowDownRight className="-ms-5 size-3.5 shrink-0 text-muted-foreground" aria-hidden />}
+                    <span className="truncate font-medium text-foreground text-sm">{domain.name}</span>
+                  </span>
+                  {/* One status, the one that says what to do next. */}
+                  <span className="mt-1 block">
+                    {!verified
+                      ? <Badge variant="warning" size="sm">Waiting for DNS</Badge>
+                      : state.waiting
+                        ? <Badge variant="warning" size="sm">Waiting for the MX record</Badge>
+                        : waitingForMail
+                          ? <Badge variant="info" size="sm"><HourglassMedium /> Waiting for the first email</Badge>
+                          : state.on
+                            ? <Badge variant="success" size="sm">Receiving</Badge>
+                            : <Badge variant="success" size="sm">Verified</Badge>}
+                  </span>
                 </span>
-                <span className="ms-auto flex shrink-0 items-center gap-2">
+                <span className="flex shrink-0 items-center gap-1.5">
+                  {admin && !verified && (
+                    <Button size="xs" variant="outline" onClick={() => setDns({ domain: domain.name, setup: null, autoApply: true })}>Add DNS records</Button>
+                  )}
                   {admin && (!verified || state.waiting || waitingForMail) && (
                     <Button
                       size="xs"
                       variant="ghost"
+                      aria-label="Check again"
                       loading={checking === domain.name}
                       disabled={checking !== null}
                       title="Ask the provider to check the DNS again"
                       onClick={() => check(domain)}
                     >
-                      <ArrowClockwise /> Check again
+                      <ArrowClockwise /> <span className="hidden sm:inline">Check again</span>
                     </Button>
                   )}
-                  {parent && state.on && (
-                    <Button size="xs" variant="ghost" onClick={() => setGuide({ parent, subdomain: domain.name })}>Reply-To</Button>
-                  )}
-                  {verified || !admin ? (
-                    <Button size="xs" variant="ghost" onClick={() => setDns({ domain: domain.name, setup: null })}>Records</Button>
-                  ) : (
-                    <Button size="xs" variant="outline" onClick={() => setDns({ domain: domain.name, setup: null, autoApply: true })}>Add DNS records</Button>
-                  )}
+                  <Menu>
+                    <MenuTrigger render={<Button size="xs" variant="ghost" aria-label={`More for ${domain.name}`} />}>
+                      <DotsThree weight="bold" />
+                    </MenuTrigger>
+                    <MenuPopup align="end">
+                      <MenuItem onClick={() => setDns({ domain: domain.name, setup: null })}>DNS records</MenuItem>
+                      {parent && state.on && (
+                        <MenuItem onClick={() => setGuide({ parent, subdomain: domain.name })}>Send replies here (Reply-To)</MenuItem>
+                      )}
+                    </MenuPopup>
+                  </Menu>
                   {admin && setReceiving && (
                     <Switch
                       aria-label={`Receive mail for ${domain.name}`}

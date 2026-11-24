@@ -399,7 +399,7 @@ function MailboxesTab({ data, refresh }: { data: Bootstrap; refresh: () => void 
             const ownerName = mailbox.personalUserId && (mine ? "you" : people.find((person) => person.userId === mailbox.personalUserId)?.name);
             return (
               <li key={mailbox.id} className="flex flex-wrap items-center gap-2 py-2 text-sm">
-                <span className="flex min-w-40 flex-1 items-center gap-2 truncate text-foreground">
+                <span className="flex min-w-40 flex-1 flex-wrap items-center gap-2 break-all text-foreground">
                   {mailbox.address}
                   {mailbox.personalUserId && (
                     <Badge variant="secondary" className="gap-1"><LockSimple weight="fill" /> Personal{ownerName ? ` · ${ownerName}` : ""}</Badge>
@@ -408,7 +408,7 @@ function MailboxesTab({ data, refresh }: { data: Bootstrap; refresh: () => void 
                 {admin ? (
                   <Input
                     key={mailbox.displayName}
-                    className="w-52"
+                    className="w-full sm:w-52"
                     maxLength={100}
                     aria-label={`Sender name for ${mailbox.address}`}
                     placeholder="Sender name"
@@ -564,21 +564,16 @@ function ConnectionTab({ data, refresh }: { data: Bootstrap; refresh: () => void
                   : <Globe className="size-4 shrink-0 text-muted-foreground" />}
                 <span className="min-w-0 flex-1">
                   <span className="block truncate font-medium text-foreground text-sm">{domain.name}</span>
-                  <span className="block truncate text-muted-foreground text-xs">
-                    {connectionLabel(connection)}
-                    {disconnected(domain) && " · disconnected"}
-                    {parent && !disconnected(domain) && ` · counts under ${parent}`}
-                  </span>
                   <span className="block text-muted-foreground text-xs">
+                    {connectionLabel(connection)}
+                    {" · "}
                     {claimed
                       ? claimed.note
                       : disconnected(domain)
-                      ? "Doesn't count toward your plan. Its mail stays here."
+                      ? "Disconnected. Its mail stays here."
                       : domain.receivingEnabled
-                        ? "Receiving is on"
-                        : connection && PROVIDER_INFO[connection.provider].receivingInHelloBox
-                          ? `Receiving is off. Turn it on under ${PROVIDER_INFO[connection.provider].name} above.`
-                          : "Receiving is off in Resend"}
+                        ? "Receiving on"
+                        : "Receiving off"}
                   </span>
                 </span>
                 {admin && claimed?.kind === "other-workspace" && <ClaimDomainButton domain={domain} data={data} refresh={refresh} />}
@@ -1137,7 +1132,7 @@ function RulesTab({ admin }: { admin: boolean }) {
         >
           <Input className="min-w-44 flex-1" required aria-label="Sender domain" placeholder="stripe.com" value={domain} onChange={(e) => setDomain(e.target.value)} />
           <Select value={category} onValueChange={(value) => { if (value) setCategory(value); }} items={[...CATEGORIES]}>
-            <SelectTrigger aria-label="Category" className="w-44"><SelectValue /></SelectTrigger>
+            <SelectTrigger aria-label="Category" className="w-full sm:w-44"><SelectValue /></SelectTrigger>
             <SelectPopup>
               {CATEGORIES.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}
             </SelectPopup>
@@ -1368,7 +1363,7 @@ function AgentsTab({ data }: { data: Bootstrap }) {
         ) : (
           <ul className="divide-y">
             {connections.map((connection) => (
-              <li key={connection.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-3 text-sm">
+              <li key={connection.id} className="flex flex-col gap-2 py-3 text-sm sm:flex-row sm:items-center sm:gap-x-3">
                 <div className="min-w-0 flex-1">
                   <p className="flex items-center gap-2 font-medium text-foreground">
                     <span className="truncate">{connection.name}</span>
@@ -1378,7 +1373,8 @@ function AgentsTab({ data }: { data: Bootstrap }) {
                     {connection.lastUsedAt ? `Last used ${formatDay(connection.lastUsedAt)}` : "Never used"} · Expires {formatDay(connection.expiresAt)}
                   </p>
                 </div>
-                <div className="flex gap-1">
+                <div className="flex items-center justify-between gap-2">
+                <div className="flex flex-wrap gap-1">
                   {connection.scopes.map((scope) => <Badge key={scope} variant="secondary" className="capitalize">{scope}</Badge>)}
                 </div>
                 <AlertDialog>
@@ -1401,6 +1397,7 @@ function AgentsTab({ data }: { data: Bootstrap }) {
                     </AlertDialogFooter>
                   </AlertDialogPopup>
                 </AlertDialog>
+                </div>
               </li>
             ))}
           </ul>
