@@ -33,8 +33,10 @@ import { LabelChip, LabelIcon } from "./label-style";
 import { IconAction } from "./icon-action";
 import { MentionInput, withMentions } from "./mention-input";
 import { SenderAvatar } from "./sender-avatar";
+import { replyAddresses } from "@/core/reply";
 import { cn } from "@/lib/utils";
-import { type ComposeState, escapeHtml, formatFullTime, formatListTime, SNOOZES } from "./types";
+import { SupportPanel } from "./support-panel";
+import { type ComposeState, escapeHtml, formatFullTime, formatListTime, SNOOZES, SUPPORT_STATUS_LABELS, type SupportStatus } from "./types";
 
 const UNASSIGNED = "unassigned";
 
@@ -463,13 +465,24 @@ export function Reader({
     [threadId, onChanged, onBack, load],
   );
 
+  const setStatus = useCallback(
+    async (status: SupportStatus) => {
+      try {
+        await call("/support/status", { threadIds: [threadId], status });
+        notify(status === "solved" ? "Solved and archived" : `Marked ${SUPPORT_STATUS_LABELS[status].toLowerCase()}`);
+        onChanged();
+        load();
+      } catch (error) {
+        notifyError(error);
+      }
+    },
+    [threadId, onChanged, load],
+  );
+
   const replyFrom = useCallback(
     (message: ThreadMessage, all: boolean) => {
       if (!detail) return;
-      const own = message.direction === "outbound";
-      const primary = own
-        ? message.toRecipients.map((r) => r.address)
-        : message.replyTo.length ? message.replyTo : [message.fromAddress];
+      const primary = replyAddresses(message, detail.support);
       const mailbox = data.mailboxes.find((m) => m.id === detail.thread.mailboxId)?.address;
       const cc = all
         ? [...message.toRecipients, ...message.ccRecipients].map((r) => r.address).filter((a) => a !== mailbox && !primary.includes(a))
@@ -701,7 +714,10 @@ export function Reader({
       </div>
 
       <ScrollArea className="min-h-0 flex-1">
-        <div className="mx-auto max-w-3xl px-5 pb-6">
+        <div className="@container">
+        <div className={cn("mx-auto px-5 pb-6", detail.support ? "flex max-w-5xl flex-col @xl:flex-row-reverse @xl:gap-5" : "max-w-3xl")}>
+          {detail.support && <SupportPanel support={detail.support} onStatus={setStatus} />}
+          <div className="min-w-0 flex-1">
           <h2 className="text-balance pt-6 font-heading font-semibold text-foreground text-xl tracking-tight">{thread.subject || "(no subject)"}</h2>
           {detail.labels.length > 0 && (
             <div className="mt-2 flex flex-wrap gap-1">
@@ -784,6 +800,8 @@ export function Reader({
               </form>
             </section>
           )}
+          </div>
+        </div>
         </div>
       </ScrollArea>
     </section>

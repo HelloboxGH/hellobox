@@ -1,11 +1,12 @@
 import { isProduction } from "@hellobox/config";
 
-import { escapeHtml } from "@hellobox/mail";
+import { escapeHtml, SUPPORT_STATUSES } from "@hellobox/mail";
 import { AppError } from "nezt";
 import { z } from "zod";
 import type { BillingErrorDetails } from "@/core/billing-errors";
 import { BILLING_PATH } from "@/core/billing-errors";
 import type { ActionMap } from "../actions-manifest";
+import { replyAddresses } from "@/core/reply";
 import type { AgentScope } from "@/core/agent-scopes";
 
 // The app's own actions, called as the agent's user. Tools never reach the
@@ -18,6 +19,7 @@ export type AgentActions = Pick<
   | "/threads/update"
   | "/threads/label"
   | "/threads/note"
+  | "/support/status"
   | "/labels/create"
   | "/drafts/save"
   | "/drafts/list"
@@ -66,7 +68,7 @@ const tool = <S extends z.ZodObject, R>(definition: {
 }) => definition as unknown as AgentTool;
 
 const VIEWS = [
-  "inbox", "starred", "snoozed", "sent", "archive", "spam", "trash", "all", "important", "assigned", "unassigned",
+  "inbox", "starred", "snoozed", "sent", "archive", "spam", "trash", "all", "important", "assigned", "unassigned", "support",
 ] as const;
 const CATEGORIES = ["primary", "notifications", "purchases", "newsletters"] as const;
 
@@ -129,10 +131,8 @@ const summarizeMessage = (message: ThreadMessage) => ({
 });
 
 // The same recipients the app fills in when someone presses Reply or Reply all.
-export function replyRecipients(message: ThreadMessage, mailboxAddress: string | undefined, all: boolean) {
-  const to = message.direction === "outbound"
-    ? message.toRecipients.map((r) => r.address)
-    : message.replyTo.length ? message.replyTo : [message.fromAddress];
+export function replyRecipients(message: ThreadMessage, mailboxAddress: string | undefined, all: boolean, support?: Thread["support"]) {
+  const to = replyAddresses(message, support);
   const cc = all
     ? [...message.toRecipients, ...message.ccRecipients]
         .map((r) => r.address)
@@ -180,7 +180,7 @@ export const agentTools: AgentTool[] = [
     name: "list_threads",
     title: "List conversations",
     description:
-      "List conversations in a view (inbox by default), newest first, 40 at a time. \"assigned\" is what's assigned to the user, \"unassigned\" is open shared mail nobody has taken. Pass nextCursor back as cursor for the next page.",
+      "List conversations in a view (inbox by default), newest first, 40 at a time. \"assigned\" is what's assigned to the user, \"unassigned\" is open shared mail nobody has taken, and \"support\" is what customers sent from an app (see supportStatus). Pass nextCursor back as cursor for the next page.",
     scope: "read",
     input: z.object({
       view: z.enum(VIEWS).default("inbox"),
@@ -188,6 +188,7 @@ export const agentTools: AgentTool[] = [
       mailboxId: z.string().optional(),
       labelId: z.string().optional(),
       unreadOnly: z.boolean().optional(),
+      supportStatus: z.enum(SUPPORT_STATUSES).optional().describe("Only in the support view."),
       cursor: z.iso.datetime().optional(),
     }),
     run: async (args, actions) => summarizeThreads(await actions["/threads/list"](args)),
@@ -225,6 +226,8 @@ export const agentTools: AgentTool[] = [
           important: detail.thread.important,
           assignedTo: detail.thread.assignedTo,
         },
+        // The customer, when it came from an app. Not verified means nobody vouched for the address.
+        support: detail.support ?? null,
         starred: detail.starred,
         labels: detail.labels,
         notes: detail.notes,
@@ -322,6 +325,15 @@ export const agentTools: AgentTool[] = [
     input: z.object({ threadId: z.string(), labelId: z.string(), applied: z.boolean().default(true) }),
     run: ({ threadId, ...args }, actions) => actions["/threads/label"]({ ids: [threadId], ...args }),
     target: ({ threadId }) => threadId,
+  }),
+  tool({
+    name: "set_support_status",
+    title: "Set a support status",
+    description: "Mark support conversations open, in progress or solved. Solved also archives them.",
+    scope: "write",
+    input: z.object({ threadIds: z.array(z.string()).min(1).max(100), status: z.enum(SUPPORT_STATUSES) }),
+    run: (args, actions) => actions["/support/status"](args),
+    target: ({ threadIds }) => threadIds.join(","),
   }),
   tool({
     name: "create_label",
@@ -568,7 +580,7 @@ export const agentTools: AgentTool[] = [
         : detail.messages.at(-1);
       if (!message) throw new AppError("That message isn't in this conversation", "NOT_FOUND", 404);
       const mailbox = workspace.mailboxes.find((m) => m.id === detail.thread.mailboxId)?.address;
-      const { to, cc } = replyRecipients(message, mailbox, replyAll);
+      const { to, cc } = replyRecipients(message, mailbox, replyAll, detail.support);
       return actions["/mail/send"]({
         mailboxId: detail.thread.mailboxId,
         threadId,
@@ -660,6 +672,7 @@ function summarizeThreads(result: Awaited<ReturnType<AgentActions["/threads/list
       lastMessageAt: thread.lastMessageAt,
       labels: thread.labels.map((label) => label.name),
       assignedTo: thread.assignee?.name ?? null,
+      supportStatus: thread.support?.status ?? null,
     })),
     nextCursor: result.nextCursor,
   };

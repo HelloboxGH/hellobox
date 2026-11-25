@@ -2,7 +2,7 @@
 
 import { WorkspaceMark } from "@/components/workspace-logo";
 import {
-  AddressBook, Archive, CaretDown, CaretUpDown, ChatCircleText, CodeBlock, ClockCountdown, Desktop, EnvelopeSimple, FileText, Gear, Lightning, LockSimple,
+  AddressBook, Archive, CaretDown, CaretUpDown, ChatCircleText, Chats, CodeBlock, ClockCountdown, Desktop, EnvelopeSimple, FileText, Gear, Lightning, LockSimple,
   MagnifyingGlass, Megaphone, Moon, Palette, PaperPlaneTilt, PencilSimple, Plus, ShieldWarning, ShoppingBag, SignOut, Star, Sun,
   Timer, Tray, TrayArrowDown, Trash, UserCircle, UsersThree, DotsThree,
   BellRinging,
@@ -132,6 +132,8 @@ const PRIMARY: { view: View; label: string; icon: ReactNode }[] = [
   { view: "drafts", label: "Drafts", icon: <FileText /> },
   { view: "scheduled", label: "Scheduled", icon: <Timer /> },
 ];
+// What customers sent from an app, once one is connected.
+const SUPPORT: typeof PRIMARY[number] = { view: "support", label: "Support", icon: <Chats /> };
 // Who has what. Only on paid plans, where conversations can be assigned.
 const TEAM: { view: View; label: string; icon: ReactNode }[] = [
   { view: "assigned", label: "Assigned to me", icon: <UserCircle /> },
@@ -218,6 +220,7 @@ export function MailSidebar({
     starred: data.counts.starred,
     assigned: data.counts.assigned,
     unassigned: data.counts.unassigned,
+    support: data.counts.supportOpen,
   };
   const go = (next: MailFilter) => {
     onFilter(next);
@@ -296,7 +299,7 @@ export function MailSidebar({
 
       <SidebarContent>
         <SidebarGroup data-tour="views">
-          <SidebarGroupContent>{views(PRIMARY)}</SidebarGroupContent>
+          <SidebarGroupContent>{views(data.support ? [...PRIMARY.slice(0, 1), SUPPORT, ...PRIMARY.slice(1)] : PRIMARY)}</SidebarGroupContent>
         </SidebarGroup>
         {data.entitlements.features.team && (
           <SidebarGroup>

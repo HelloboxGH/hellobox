@@ -1,12 +1,15 @@
 export type View =
   | "inbox" | "starred" | "snoozed" | "sent" | "drafts" | "purchases"
-  | "spam" | "scheduled" | "all" | "important" | "trash" | "archive" | "assigned" | "unassigned";
+  | "spam" | "scheduled" | "all" | "important" | "trash" | "archive" | "assigned" | "unassigned" | "support";
 
 export const VIEW_TITLES: Record<View, string> = {
   inbox: "Inbox", starred: "Starred", snoozed: "Snoozed", sent: "Sent", drafts: "Drafts",
   purchases: "Purchases", spam: "Spam", scheduled: "Scheduled", all: "All mail",
-  important: "Important", trash: "Trash", archive: "Archive", assigned: "Assigned to me", unassigned: "Unassigned",
+  important: "Important", trash: "Trash", archive: "Archive", assigned: "Assigned to me", unassigned: "Unassigned", support: "Support",
 };
+
+export const SUPPORT_STATUS_LABELS = { open: "Open", in_progress: "In progress", solved: "Solved" } as const;
+export type SupportStatus = keyof typeof SUPPORT_STATUS_LABELS;
 
 // Views about who has a conversation. Assigning needs a paid plan, so the free plan hides them.
 export const TEAM_VIEWS: ReadonlySet<View> = new Set(["assigned", "unassigned"]);

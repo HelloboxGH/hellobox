@@ -73,7 +73,7 @@ export async function touchSupportKey(keyId: string) {
 }
 
 /** Why the inbox takes no messages now, or null. Nobody could answer one it took. */
-export function supportInboxProblem(row: SupportInbox) {
+export function supportInboxProblem(row: Omit<SupportInbox, "inbox">) {
   if (row.workspace.suspendedAt) return "This workspace is suspended";
   const stopped = sendBlockedReason(row.mailbox, row.domain);
   if (stopped) return stopped;

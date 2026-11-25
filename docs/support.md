@@ -7,8 +7,25 @@ Your customers write in your own form. Your server passes the message to HelloBo
 key. Your team answers it like any other mail, and the customer's answers, by email or from your
 app, stay in the same conversation.
 
-You need a shared mailbox on a domain that can send. For answers by email to arrive, the domain
-has to receive in HelloBox too.
+## Set it up
+
+1. An admin opens **Settings → Support**, names the app and picks a shared mailbox on a domain that
+   can send. Replies come from that mailbox.
+2. Copy the key. It's shown once.
+3. Add it to your app: copy the prompt into your AI coding tool, or use the code below.
+
+For answers by email to arrive, the domain has to receive in HelloBox too. Settings says so until
+it does.
+
+## Answer it
+
+Conversations are in **Support** in the sidebar, and in the mailbox, for everyone who can read that
+mailbox. Beside one you see who the customer is, your metadata and its status: **Open**, **In
+progress** or **Solved**. Solved archives it. A new message from the customer opens it again and
+brings it back to the inbox.
+
+AI agents connected over MCP can list support conversations and set their status, with the read
+and write permissions they already have. Replying needs the send permission.
 
 ## Send a message
 

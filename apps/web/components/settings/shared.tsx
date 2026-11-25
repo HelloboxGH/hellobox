@@ -1,6 +1,8 @@
 "use client";
 
+import { Check, Copy } from "@phosphor-icons/react";
 import { type ReactNode, useCallback, useRef, useState } from "react";
+import { Button } from "@/components/ui/button";
 import { Card, CardDescription, CardHeader, CardPanel, CardTitle } from "@/components/ui/card";
 import { notify, notifyError } from "@/core/client/notify";
 import { cn } from "@/lib/utils";
@@ -14,6 +16,28 @@ export function Section({ title, description, children, tone }: { title: string;
       </CardHeader>
       <CardPanel className="space-y-3">{children}</CardPanel>
     </Card>
+  );
+}
+
+export function CopyButton({ value, label = "Copy" }: { value: string; label?: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <Button
+      size="sm"
+      variant="outline"
+      onClick={async () => {
+        try {
+          await navigator.clipboard.writeText(value);
+          setCopied(true);
+          window.setTimeout(() => setCopied(false), 2000);
+        } catch (error) {
+          notifyError(error);
+        }
+      }}
+    >
+      {copied ? <Check /> : <Copy />}
+      {copied ? "Copied" : label}
+    </Button>
   );
 }
 

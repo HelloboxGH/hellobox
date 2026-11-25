@@ -1,7 +1,7 @@
 "use client";
 
 import {
-  Archive, Check, CheckCircle, ClockCountdown, DotsThree, EnvelopeSimple, EnvelopeSimpleOpen, FileText, MagnifyingGlass,
+  Archive, Chats, Check, CheckCircle, ClockCountdown, DotsThree, EnvelopeSimple, EnvelopeSimpleOpen, FileText, MagnifyingGlass,
   Paperclip, ShieldCheck, ShieldWarning, Star, Timer, Trash, TrashSimple, Tray, UserCircle, UsersThree, List, X,
 } from "@phosphor-icons/react";
 import { type ComponentType, type PointerEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -26,7 +26,7 @@ import { SenderAvatar } from "./sender-avatar";
 import { LabelChip } from "./label-style";
 import { actionsFor, CONTEXT_KIT, MENU_KIT, ThreadActionItems, useThreadActions } from "./thread-actions";
 import { endThreadDrag, startThreadDrag, useThreadDrag } from "./thread-drag";
-import { type ComposeState, formatListTime, type MailFilter, VIEW_TITLES, type View } from "./types";
+import { type ComposeState, formatListTime, type MailFilter, SUPPORT_STATUS_LABELS, type SupportStatus, VIEW_TITLES, type View } from "./types";
 
 type Category = "primary" | "notifications" | "purchases" | "newsletters";
 
@@ -39,6 +39,7 @@ const EMPTY: Partial<Record<View, { icon: ComponentType; title: string; body: st
   snoozed: { icon: ClockCountdown, title: "Nothing snoozed", body: "Snoozed mail comes back when you asked it to." },
   assigned: { icon: UserCircle, title: "Nothing assigned to you", body: "Conversations a teammate gives you land here until they're archived." },
   unassigned: { icon: UsersThree, title: "Everything has an owner", body: "New mail in shared mailboxes waits here until someone takes it." },
+  support: { icon: Chats, title: "Nothing here", body: "Messages customers send from your app land here." },
   drafts: { icon: FileText, title: "No drafts", body: "Unsent messages save here as you type." },
   scheduled: { icon: Timer, title: "Nothing scheduled", body: "Pick a time when you send, and it waits here." },
   spam: { icon: ShieldCheck, title: "No spam", body: "Anything suspicious is held here for 30 days." },
@@ -86,6 +87,8 @@ export function ThreadList({
   const [failed, setFailed] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState<Category | undefined>();
+  // What's waiting comes first in Support.
+  const [status, setStatus] = useState<SupportStatus | undefined>("open");
   const latest = useRef(0);
 
   useEffect(() => {
@@ -111,6 +114,7 @@ export function ThreadList({
           const result = await call("/threads/list", {
             view: filter.view === "purchases" ? "all" : filter.view,
             category: filter.view === "purchases" ? "purchases" : filter.view === "inbox" ? category : undefined,
+            supportStatus: filter.view === "support" ? status : undefined,
             mailboxId: filter.mailboxId,
             labelId: filter.labelId,
             q: search || undefined,
@@ -131,7 +135,7 @@ export function ThreadList({
         if (request === latest.current) setLoadedFor(JSON.stringify(filter));
       }
     },
-    [filter, category, search, onThreads],
+    [filter, category, status, search, onThreads],
   );
 
   // refreshKey is a dependency so that new mail reloads the list.
@@ -142,7 +146,7 @@ export function ThreadList({
 
   // Multi-select. The selection belongs to what's listed: changing view, tab or search
   // drops it, and conversations that leave the list leave the selection.
-  const scope = `${filterKey}|${category ?? ""}|${search}`;
+  const scope = `${filterKey}|${category ?? ""}|${status ?? ""}|${search}`;
   const [selection, setSelection] = useState({ scope, ids: NONE });
   const selectedIds = selection.scope === scope ? selection.ids : NONE;
   const picked = useMemo(() => threads.filter((thread) => selectedIds.has(thread.id)), [threads, selectedIds]);
@@ -322,6 +326,16 @@ export function ThreadList({
               )}
             </InputGroupAddon>
           </InputGroup>
+        )}
+        {filter.view === "support" && (
+          <Tabs value={status ?? "all"} onValueChange={(value) => setStatus(value === "all" ? undefined : (value as SupportStatus))}>
+            <TabsList className="w-full" aria-label="Filter by status">
+              {(Object.keys(SUPPORT_STATUS_LABELS) as SupportStatus[]).map((value) => (
+                <TabsTab key={value} value={value}>{SUPPORT_STATUS_LABELS[value]}</TabsTab>
+              ))}
+              <TabsTab value="all">All</TabsTab>
+            </TabsList>
+          </Tabs>
         )}
         {filter.view === "inbox" && (
           <Tabs value={category ?? "all"} onValueChange={(value) => setCategory(value === "all" ? undefined : (value as Category))}>
@@ -503,6 +517,9 @@ export function ThreadList({
                         <span className="flex items-center gap-1.5 pe-5">
                           <span className="min-w-0 flex-1 truncate text-muted-foreground text-xs">{thread.snippet}</span>
                           {thread.hasAttachments && <Paperclip aria-label="Has attachments" className="size-3 shrink-0 text-muted-foreground" />}
+                          {thread.support && !(filter.view === "support" && status) && (
+                            <Badge variant={thread.support.status === "open" ? "info" : "secondary"} size="sm">{SUPPORT_STATUS_LABELS[thread.support.status]}</Badge>
+                          )}
                           {thread.labels.slice(0, 1).map((label) => <LabelChip key={label.id} label={label} />)}
                           {thread.assignee && filter.view !== "assigned" && (
                             <Tooltip>

@@ -1,7 +1,7 @@
 "use client";
 
 import {
-  ArrowElbowDownRight, ArrowLeft, BellRinging, ChatCircleText, Check, Copy, DownloadSimple, Globe, Key, LockKey, DotsThree, ListChecks, LockSimple, LockSimpleOpen, Play, Plugs, Prohibit, Robot, ShieldCheck, Sparkle,
+  ArrowElbowDownRight, ArrowLeft, BellRinging, ChatCircleText, Chats, DownloadSimple, Globe, Key, LockKey, DotsThree, ListChecks, LockSimple, LockSimpleOpen, Play, Plugs, Prohibit, Robot, ShieldCheck, Sparkle,
   Trash, Tray, UserCircle, UsersThree,
 } from "@phosphor-icons/react";
 import Link from "next/link";
@@ -56,7 +56,8 @@ import { ClaimDomainButton, claimedState, IncomingClaims } from "./domain-claims
 import { FeedbackContent } from "@/components/feedback";
 import { connectionLabel, ProvidersSection } from "./providers-section";
 import { BounceChoice } from "./bounce-choice";
-import { Section, useRun, useRunning } from "./shared";
+import { CopyButton, Section, useRun, useRunning } from "./shared";
+import { SupportTab } from "./support-tab";
 
 
 async function unwrap<T>(promise: Promise<{ data: T | null; error: { message?: string } | null }>) {
@@ -1286,28 +1287,6 @@ function downloadBackupCodes(codes: string[], email?: string) {
   URL.revokeObjectURL(url);
 }
 
-function CopyButton({ value, label = "Copy" }: { value: string; label?: string }) {
-  const [copied, setCopied] = useState(false);
-  return (
-    <Button
-      size="sm"
-      variant="outline"
-      onClick={async () => {
-        try {
-          await navigator.clipboard.writeText(value);
-          setCopied(true);
-          window.setTimeout(() => setCopied(false), 2000);
-        } catch (error) {
-          notifyError(error);
-        }
-      }}
-    >
-      {copied ? <Check /> : <Copy />}
-      {copied ? "Copied" : label}
-    </Button>
-  );
-}
-
 function AgentSetup({ token }: { token: string }) {
   const [client, setClient] = useState<AgentClient>("claude-code");
   // Only shown after creating a connection, so this never renders on the server.
@@ -1485,6 +1464,7 @@ const TABS = [
   { value: "rules", label: "Rules", icon: <ListChecks /> },
   { value: "suppressions", label: "Suppressed", icon: <Prohibit /> },
   { value: "ai", label: "AI", icon: <Sparkle /> },
+  { value: "support", label: "Support", icon: <Chats /> },
   { value: "agents", label: "Agents", icon: <Robot /> },
   { value: "feedback", label: "Feedback", icon: <ChatCircleText /> },
 ];
@@ -1540,6 +1520,7 @@ function Settings() {
             <TabsPanel value="rules"><RulesTab admin={data.role !== "member"} /></TabsPanel>
             <TabsPanel value="suppressions"><SuppressionsTab admin={data.role !== "member"} /></TabsPanel>
             <TabsPanel value="ai"><AiTab /></TabsPanel>
+            <TabsPanel value="support"><SupportTab admin={data.role !== "member"} refresh={refresh} onTab={setTab} /></TabsPanel>
             <TabsPanel value="agents"><AgentsTab data={data} /></TabsPanel>
             <TabsPanel value="feedback">
               <Section title="Feedback and contact" description="Ideas, bugs or questions go straight to the people who build HelloBox. We reply to your account email.">

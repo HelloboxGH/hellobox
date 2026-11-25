@@ -19,6 +19,8 @@ import {
   connections,
   rules,
   senderLists,
+  supportConversations,
+  supportInboxes,
   threads,
   threadUserState,
   user,
@@ -80,7 +82,7 @@ export const bootstrap = workspaceAction("/app/bootstrap").handler(async ({ ctx 
     .from(user)
     .where(eq(user.id, ctx.user.id))
     .execute();
-  const [[account], myWorkspaces, workspaceUnread, connectionRows, domainRows, mailboxRows, labelRows, counts, managedRows, [cloudflare], outgoingClaims, incomingClaims, [notices]] =
+  const [[account], myWorkspaces, workspaceUnread, connectionRows, domainRows, mailboxRows, labelRows, counts, managedRows, [cloudflare], outgoingClaims, incomingClaims, [notices], [supportInbox], [openSupport]] =
     await Promise.all([
       accountQuery,
       db
@@ -221,6 +223,24 @@ export const bootstrap = workspaceAction("/app/bootstrap").handler(async ({ ctx 
               ),
             )
         : [],
+      db.select({ id: supportInboxes.id }).from(supportInboxes).where(eq(supportInboxes.workspaceId, ctx.workspace.id)).limit(1),
+      // Waiting for the team, read or not.
+      allowed.length
+        ? db
+            .select({ count: sql<number>`count(*)::int` })
+            .from(supportConversations)
+            .innerJoin(threads, eq(threads.id, supportConversations.threadId))
+            .innerJoin(mailboxes, eq(mailboxes.id, threads.mailboxId))
+            .leftJoin(domains, eq(domains.id, mailboxes.domainId))
+            .where(
+              and(
+                inArray(threads.mailboxId, allowed),
+                eq(supportConversations.status, "open"),
+                sql`${threads.folder} not in ('spam', 'trash')`,
+                onShownDomain(),
+              ),
+            )
+        : [],
     ]);
   return {
     user: {
@@ -277,7 +297,8 @@ export const bootstrap = workspaceAction("/app/bootstrap").handler(async ({ ctx 
     mailboxes: mailboxRows,
     managedMailboxes: managedRows,
     labels: labelRows,
-    counts: counts[0] ?? { inboxUnread: 0, spam: 0, starred: 0, assigned: 0, unassigned: 0 },
+    counts: { ...(counts[0] ?? { inboxUnread: 0, spam: 0, starred: 0, assigned: 0, unassigned: 0 }), supportOpen: openSupport?.count ?? 0 },
+    support: Boolean(supportInbox),
     notificationsUnread: notices?.unread ?? 0,
   };
 });

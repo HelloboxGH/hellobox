@@ -8,6 +8,9 @@ import {
   members,
   messages,
   senderLists,
+  supportConversations,
+  supportInboxes,
+  supportMessages,
   threadLabels,
   threadNotes,
   threads,
@@ -17,10 +20,10 @@ import {
 } from "@hellobox/db";
 import {
   assignmentNotices, countedBytes, mentionableOn, mentionedIn, notifyMentioned, domainOf, hasRemoteImages, keepQuarantinedThreads, markThreadNotificationsRead, notifyAssigned,
-  publishEvent, readableMailboxIds, recordSpamReports, replaceCidImages, shownDomain, SPAM_REASONS, withdrawSpamReports,
+  publishEvent, readableMailboxIds, recordSpamReports, replaceCidImages, shownDomain, SPAM_REASONS, SUPPORT_STATUSES, withdrawSpamReports,
 } from "@hellobox/mail";
 import { deleteObject } from "@hellobox/storage";
-import { and, desc, eq, gt, inArray, isNull, lt, or, type SQL, sql } from "drizzle-orm";
+import { and, desc, eq, gt, inArray, isNotNull, isNull, lt, or, type SQL, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { badRequest, notFound } from "nezt";
 import { z } from "zod";
@@ -33,7 +36,7 @@ import { accessibleMailboxIds, type WorkspaceContext } from "../middlewares";
 const PAGE_SIZE = 40;
 
 const VIEWS = [
-  "inbox", "starred", "snoozed", "sent", "archive", "spam", "trash", "all", "important", "assigned", "unassigned",
+  "inbox", "starred", "snoozed", "sent", "archive", "spam", "trash", "all", "important", "assigned", "unassigned", "support",
 ] as const;
 
 const assignee = alias(user, "assignee");
@@ -43,7 +46,7 @@ const assignee = alias(user, "assignee");
 const announce = (workspaceId: string, threadIds: string[]) =>
   publishEvent(workspaceId, { type: "thread.updated", threadId: threadIds.length === 1 ? threadIds[0] : undefined });
 
-async function assertThreads(ctx: WorkspaceContext, ids: string[]) {
+export async function assertThreads(ctx: WorkspaceContext, ids: string[]) {
   const allowed = await accessibleMailboxIds(ctx);
   const rows = allowed.length
     ? await getDb()
@@ -74,6 +77,8 @@ export const listThreads = workspaceAction("/threads/list")
       labelId: z.string().optional(),
       q: z.string().trim().max(200).optional(),
       unreadOnly: z.boolean().optional(),
+      // Only used in the support view.
+      supportStatus: z.enum(SUPPORT_STATUSES).optional(),
       cursor: z.iso.datetime().optional(),
     }),
   )
@@ -105,6 +110,11 @@ export const listThreads = workspaceAction("/threads/list")
       case "unassigned":
         // Personal mailboxes can't be assigned, so they'd never leave this list.
         filters.push(isNull(threads.assignedTo), isNull(mailboxes.personalUserId), inInbox(now));
+        break;
+      // Solved conversations are archived, so this one looks past the Inbox.
+      case "support":
+        filters.push(isNotNull(supportConversations.id), notHidden);
+        if (input.supportStatus) filters.push(eq(supportConversations.status, input.supportStatus));
         break;
       case "starred":
         filters.push(eq(threadUserState.starred, true), notHidden);
@@ -154,11 +164,13 @@ export const listThreads = workspaceAction("/threads/list")
         mailboxAddress: mailboxes.address,
         assigneeName: assignee.name,
         assigneeImage: assignee.image,
+        support: { status: supportConversations.status, verified: supportConversations.verified },
       })
       .from(threads)
       .innerJoin(mailboxes, eq(mailboxes.id, threads.mailboxId))
       .leftJoin(domains, eq(domains.id, mailboxes.domainId))
       .leftJoin(assignee, eq(assignee.id, threads.assignedTo))
+      .leftJoin(supportConversations, eq(supportConversations.threadId, threads.id))
       .leftJoin(
         threadUserState,
         and(
@@ -187,6 +199,7 @@ export const listThreads = workspaceAction("/threads/list")
         unread: !row.readAt,
         starred: row.starred ?? false,
         snoozedUntil: row.snoozedUntil,
+        support: row.support,
         labels: labelRows.filter((label) => label.threadId === row.thread.id),
         assignee:
           row.thread.assignedTo && row.assigneeName !== null
@@ -207,7 +220,7 @@ export const getThread = workspaceAction("/threads/get")
     const db = getDb();
     const [thread] = await db.select().from(threads).where(eq(threads.id, input.id));
     if (!thread) throw notFound("Conversation");
-    const [threadMessages, state, notes, threadLabelRows, imageSenders] = await Promise.all([
+    const [threadMessages, state, notes, threadLabelRows, imageSenders, [support], fromCustomer] = await Promise.all([
       db.select().from(messages).where(eq(messages.threadId, input.id)).orderBy(messages.sentAt),
       db
         .select()
@@ -228,6 +241,25 @@ export const getThread = workspaceAction("/threads/get")
         .select({ value: senderLists.value })
         .from(senderLists)
         .where(and(eq(senderLists.workspaceId, ctx.workspace.id), eq(senderLists.kind, "images_allowed"))),
+      db
+        .select({
+          id: supportConversations.id,
+          inbox: supportInboxes.name,
+          status: supportConversations.status,
+          verified: supportConversations.verified,
+          userId: supportConversations.externalUserId,
+          email: supportConversations.email,
+          name: supportConversations.name,
+          metadata: supportConversations.metadata,
+        })
+        .from(supportConversations)
+        .innerJoin(supportInboxes, eq(supportInboxes.id, supportConversations.inboxId))
+        .where(eq(supportConversations.threadId, input.id)),
+      db
+        .select({ messageId: supportMessages.messageId })
+        .from(supportMessages)
+        .innerJoin(supportConversations, eq(supportConversations.id, supportMessages.conversationId))
+        .where(eq(supportConversations.threadId, input.id)),
     ]);
     const files = threadMessages.length
       ? await db
@@ -250,6 +282,8 @@ export const getThread = workspaceAction("/threads/get")
       starred: state[0]?.starred ?? false,
       notes,
       labels: threadLabelRows,
+      // Null when it isn't a support conversation.
+      support: support ?? null,
       messages: threadMessages.map(({ searchVector: _search, rawKey: _raw, ...message }) => {
         const own = files.filter((file) => file.messageId === message.id);
         const html = message.htmlBody
@@ -260,6 +294,8 @@ export const getThread = workspaceAction("/threads/get")
           : null;
         return {
           ...message,
+          // The customer wrote it, in a support conversation.
+          fromCustomer: fromCustomer.some((row) => row.messageId === message.id),
           sentByAgent: agents.find((agent) => agent.id === message.agentTokenId)?.name ?? null,
           // The teammate who replied. Null for mail that came in, and for people who left.
           sentBy: senders.find((sender) => sender.id === message.sentByUserId)?.name ?? null,

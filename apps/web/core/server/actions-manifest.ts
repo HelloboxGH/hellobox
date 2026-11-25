@@ -16,6 +16,7 @@ import { composeActions } from "./actions/compose";
 import { health } from "./actions/health";
 import { importActions } from "./actions/imports";
 import { sesActions } from "./actions/ses";
+import { supportActions } from "./actions/support";
 import { threadActions } from "./actions/threads";
 import { vaultActions } from "./actions/vault";
 import { workspaceActions } from "./actions/workspace";
@@ -35,6 +36,7 @@ export const allActions = {
   ...workspacesActions,
   ...composeActions,
   ...sesActions,
+  ...supportActions,
   ...threadActions,
   ...vaultActions,
   ...workspaceActions,
