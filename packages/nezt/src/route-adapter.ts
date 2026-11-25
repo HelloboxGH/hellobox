@@ -102,6 +102,10 @@ export function createRouteHandler<TInput, TOutput>(
           contentType.includes("multipart/form-data") ||
           contentType.includes("application/x-www-form-urlencoded")
         ) {
+          // Only for an action that asks for a form: reading one holds all of it in memory.
+          if (!isPartitionedSchema(schema) || !schema.formData) {
+            throw new BadRequestError("Send JSON");
+          }
           try {
             formData = await request.formData();
             body = Object.fromEntries(formData.entries());

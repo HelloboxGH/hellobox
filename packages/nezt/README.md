@@ -253,7 +253,7 @@ Supported partitions:
 - `params`: Dynamic route parameters (Next.js 13/14 synchronous objects and Next.js 15+ Promises).
 - `query`: URL query string parameters (with automatic array support for duplicates).
 - `body`: Parsed JSON body or URL-encoded payload.
-- `formData`: Multipart or standard FormData.
+- `formData`: Multipart or standard FormData. Actions without it don't read forms.
 - `headers`: Incoming HTTP headers.
 
 ---
