@@ -16,6 +16,8 @@ import { classifySpam, senderPolicy } from "../spam";
 import { DuplicateMessage, storeInbound } from "../store-inbound";
 import { makeSnippet } from "../threading";
 import { claimFiles } from "./files";
+import { supportMessageAdded } from "./read";
+import { recordSupportEvent } from "./webhooks";
 import type { SupportInbox } from "./keys";
 import { subjectFrom } from "./text";
 
@@ -213,6 +215,9 @@ export async function postSupportMessage(
             ...(message.metadata ? { metadata: message.metadata } : {}),
           })
           .where(eq(supportConversations.id, existing.id));
+        if (folder !== "spam" && existing.status !== "open") {
+          await recordSupportEvent(tx, existing, "conversation.status_changed", { status: "open" });
+        }
       } else {
         await tx.insert(supportConversations).values({
           id: conversationId,
@@ -255,6 +260,7 @@ export async function postSupportMessage(
         .returning({ id: supportMessages.id });
       // The same request, sent again while the first was still being stored.
       if (!recorded) throw new DuplicateMessage();
+      await supportMessageAdded(tx, id, { id: messageId, direction: "inbound", fromAddress: email, toRecipients: [to], ccRecipients: [], sentAt: now });
     },
   });
   if (!threadId) {

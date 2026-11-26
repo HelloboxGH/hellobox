@@ -1,5 +1,7 @@
 import { connections, domains, getDb, mailboxes, supportConversations, supportInboxes, supportKeys, workspaces } from "@hellobox/db";
-import { cleanLine, generateSupportKey, setSupportStatus, SUPPORT_STATUSES, supportInboxProblem } from "@hellobox/mail";
+import {
+  assertPublicUrl, cleanLine, generateSupportKey, generateWebhookSecret, sealWebhookSecret, setSupportStatus, SUPPORT_STATUSES, supportInboxProblem, UnsafeUrlError,
+} from "@hellobox/mail";
 import { and, count, eq, inArray, isNull } from "drizzle-orm";
 import { badRequest, forbidden, notFound } from "nezt";
 import { z } from "zod";
@@ -72,6 +74,9 @@ export const listSupportInboxes = adminAction("/support/inboxes").handler(async 
         receiving: Boolean(box?.row.domain?.receivingEnabled),
         problem: box ? box.problem : "This mailbox is gone",
         conversations: conversations.find((row) => row.inboxId === inbox.id)?.count ?? 0,
+        webhook: inbox.webhookUrl
+          ? { url: inbox.webhookUrl, error: inbox.webhookError, pausedUntil: inbox.webhookPausedUntil }
+          : null,
         keys: keys.filter((key) => key.inboxId === inbox.id).map(({ inboxId: _inboxId, ...key }) => key),
       };
     }),
@@ -170,7 +175,53 @@ export const setStatus = workspaceAction("/support/status")
     return { updated: changed.length };
   });
 
+// Replacing the address keeps the secret, so the app doesn't need a new one.
+export const setSupportWebhook = adminAction("/support/webhook")
+  .input(z.object({ inboxId: z.string(), url: z.string().trim().max(2000).nullable() }))
+  .handler(async ({ input, ctx }) => {
+    assertPerson(ctx);
+    const inbox = await ownInbox(ctx, input.inboxId);
+    let url: string | null = null;
+    if (input.url) {
+      try {
+        url = assertPublicUrl(input.url).toString();
+      } catch (error) {
+        if (error instanceof UnsafeUrlError) throw badRequest(error.message);
+        throw error;
+      }
+    }
+    const secret = url && !inbox.webhookSecretEnc ? generateWebhookSecret() : null;
+    await getDb()
+      .update(supportInboxes)
+      .set({
+        webhookUrl: url,
+        ...(secret ? { webhookSecretEnc: sealWebhookSecret(secret) } : {}),
+        ...(url ? {} : { webhookSecretEnc: null }),
+        webhookFailures: 0,
+        webhookPausedUntil: null,
+        webhookError: null,
+      })
+      .where(eq(supportInboxes.id, inbox.id));
+    await emit(ctx, "support.webhook_changed", inbox.id, { name: inbox.name, url: url ?? "" });
+    return { secret };
+  });
+
+// The old one stops working at once.
+export const rollSupportWebhookSecret = adminAction("/support/webhook/secret")
+  .input(z.object({ inboxId: z.string() }))
+  .handler(async ({ input, ctx }) => {
+    assertPerson(ctx);
+    const inbox = await ownInbox(ctx, input.inboxId);
+    if (!inbox.webhookUrl) throw badRequest("Add a webhook address first");
+    const secret = generateWebhookSecret();
+    await getDb().update(supportInboxes).set({ webhookSecretEnc: sealWebhookSecret(secret) }).where(eq(supportInboxes.id, inbox.id));
+    await emit(ctx, "support.webhook_changed", inbox.id, { name: inbox.name, url: inbox.webhookUrl });
+    return { secret };
+  });
+
 export const supportActions = {
+  "/support/webhook": setSupportWebhook,
+  "/support/webhook/secret": rollSupportWebhookSecret,
   "/support/inboxes": listSupportInboxes,
   "/support/inboxes/create": createSupportInbox,
   "/support/inboxes/rename": renameSupportInbox,

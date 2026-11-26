@@ -96,6 +96,65 @@ Programs and scripts are refused by name, such as `.exe` and `.js`. **Files aren
 malware**, here or in email. Your team sees PNG, JPEG, GIF and WebP images in the conversation,
 and everything else is a download. What a file is comes from its contents, never its name.
 
+## Show conversations in your app
+
+For a verified customer, your server can read their conversations back and show them in your app.
+Each call names the customer with `userId`, the `user.id` you sent. Anything that isn't theirs,
+in this inbox, answers `404`, exactly like something missing.
+
+| Call | |
+|---|---|
+| `GET /api/support/v1/conversations?userId=` | Their conversations, the newest first, 20 at a time. Pass `nextCursor` back as `cursor` for more. |
+| `GET /api/support/v1/conversations/:id?userId=` | One conversation and its messages, up to the newest 200. |
+| `POST /api/support/v1/conversations/:id/status` | `{ "userId": "…", "status": "solved" }`, or `"open"`. Solved archives it for your team too. |
+| `GET /api/support/v1/attachments/:id?userId=` | `{ "url", "expiresAt" }`: a download link that lasts 15 minutes. |
+
+```json
+{
+  "id": "…", "subject": "Export is stuck", "status": "open",
+  "createdAt": "…", "lastMessageAt": "…",
+  "messages": [
+    { "id": "…", "from": "customer", "name": "Ada", "text": "My export…", "createdAt": "…", "attachments": [] },
+    { "id": "…", "from": "team", "name": "Acme support", "text": "Fixed, try again.", "createdAt": "…",
+      "attachments": [{ "id": "…", "filename": "log.txt", "contentType": "text/plain", "size": 1200 }] }
+  ]
+}
+```
+
+A customer sees the messages they wrote, from your app or by email, and your replies addressed to
+them in To or Cc. Never notes, labels, who it's assigned to, Bcc, drafts, mail from anyone else, or
+a message you sent to someone else from the conversation. Replies carry the mailbox's name, not
+the teammate's. Messages are plain text, without the history an email quotes.
+
+Unverified conversations are never readable back. A key can make 600 of these calls a minute.
+
+`tools/support-example` is a small app that does all of this, with no dependencies.
+
+## Webhook
+
+Add an address in **Settings → Support** and your server hears about verified conversations:
+
+```json
+{ "id": "…", "type": "message.created", "createdAt": "…",
+  "data": { "conversationId": "…", "userId": "user_42", "messageId": "…", "from": "team" } }
+```
+
+| Type | `data` |
+|---|---|
+| `message.created` | `conversationId`, `userId`, `messageId`, and `from`: `customer` or `team`. Only for messages the customer can see. |
+| `conversation.status_changed` | `conversationId`, `userId`, `status`. |
+
+Events carry ids only. Read the rest with the calls above.
+
+Each event is a `POST` with `X-HelloBox-Timestamp` and `X-HelloBox-Signature`. Check the signature:
+it's `v1=` and the HMAC-SHA256, in hex, of the timestamp, a dot and the body, with your secret.
+Refuse timestamps more than a few minutes old.
+
+Answer with a `2xx`. Anything else, a redirect included, counts as a failure: the event is tried
+again with growing pauses for a day, and your address gets one try per pause until it answers.
+Events can arrive twice or out of order, so use `id` to skip repeats. The address has to be public
+`https://`.
+
 ## Who is verified
 
 Whoever your server says, with `user.id`. Only send it for someone signed in to your app, and use

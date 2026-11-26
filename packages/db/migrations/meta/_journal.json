@@ -239,6 +239,13 @@
       "when": 1795628302125,
       "tag": "0033_support_uploads",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1795697162097,
+      "tag": "0034_support_read",
+      "breakpoints": true
     }
   ]
 }

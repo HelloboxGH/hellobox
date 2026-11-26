@@ -16,6 +16,7 @@ export type MailJob =
   | { name: "provision-ses"; data: { connectionId: string } }
   | { name: "postmark-inbound"; data: { connectionId: string } }
   | { name: "notify"; data: { messageId: string } }
+  | { name: "support-webhook"; data: { inboxId: string } }
   | { name: "notify-flush"; data: { channelId: string } }
   | { name: "notify-test"; data: { channelId: string } }
   | { name: "notify-digest"; data: Record<string, never> }
@@ -123,6 +124,17 @@ export const enqueuePostmarkInbound = (connectionId: string) =>
     { connectionId },
     { jobId: `postmark-inbound_${connectionId}_${Date.now()}`, delay: 30_000, attempts: 60, backoff: { type: "fixed", delay: 60_000 } },
   );
+
+// One delivery per inbox every few seconds at most. A failure isn't retried by the queue:
+// the job schedules the next try itself, after a pause that grows.
+export const enqueueSupportWebhook = (inboxId: string, delayMs = 0) => {
+  const at = Date.now() + Math.max(0, delayMs);
+  return getMailQueue().add(
+    "support-webhook",
+    { inboxId },
+    { attempts: 1, removeOnComplete: true, removeOnFail: 500, jobId: `support-webhook_${inboxId}_${Math.ceil(at / 5_000)}`, delay: Math.max(0, delayMs) },
+  );
+};
 
 // Notifications don't retry: a late "new mail" is worse than none, and retrying would
 // repeat the channels that already got it.

@@ -1330,6 +1330,14 @@ export const supportInboxes = pgTable(
       .notNull()
       .references(() => mailboxes.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
+    // Where events go, signed with the secret. Never a private address.
+    webhookUrl: text("webhook_url"),
+    webhookSecretEnc: text("webhook_secret_enc"),
+    // A failing endpoint is tried once per pause, which doubles each time, so it never
+    // holds up the queue.
+    webhookFailures: integer("webhook_failures").notNull().default(0),
+    webhookPausedUntil: time("webhook_paused_until"),
+    webhookError: text("webhook_error"),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -1390,12 +1398,15 @@ export const supportConversations = pgTable(
     verified: boolean("verified").notNull().default(false),
     status: supportStatusEnum("status").notNull().default("open"),
     metadata: jsonb("metadata").$type<SupportMetadata>().notNull().default({}),
+    // The newest message the customer can see, so their list is in order without
+    // looking at the team's.
+    lastMessageAt: time("last_message_at").notNull().defaultNow(),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
   (t) => [
     uniqueIndex("support_conversations_thread_idx").on(t.threadId),
-    index("support_conversations_user_idx").on(t.inboxId, t.externalUserId),
+    index("support_conversations_user_idx").on(t.inboxId, t.externalUserId, t.lastMessageAt),
     index("support_conversations_workspace_idx").on(t.workspaceId, t.status),
   ],
 );
@@ -1429,5 +1440,30 @@ export const supportMessages = pgTable(
     uniqueIndex("support_messages_key_idx").on(t.inboxId, t.idempotencyKey),
     index("support_messages_conversation_idx").on(t.conversationId),
     index("support_messages_usage_idx").on(t.workspaceId, t.createdAt),
+  ],
+);
+
+// What happened in a verified conversation, waiting to reach the developer's webhook. Ids
+// only: the app reads the rest through the API, so nothing is kept twice.
+export const supportWebhookEvents = pgTable(
+  "support_webhook_events",
+  {
+    id: id(),
+    workspaceId: text("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "cascade" }),
+    inboxId: text("inbox_id")
+      .notNull()
+      .references(() => supportInboxes.id, { onDelete: "cascade" }),
+    type: text("type").$type<"message.created" | "conversation.status_changed">().notNull(),
+    payload: jsonb("payload").$type<Record<string, string>>().notNull(),
+    attempts: integer("attempts").notNull().default(0),
+    nextAttemptAt: time("next_attempt_at").notNull().defaultNow(),
+    deliveredAt: time("delivered_at"),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    index("support_webhook_events_due_idx").on(t.inboxId, t.nextAttemptAt).where(sql`${t.deliveredAt} is null`),
+    index("support_webhook_events_created_idx").on(t.createdAt),
   ],
 );

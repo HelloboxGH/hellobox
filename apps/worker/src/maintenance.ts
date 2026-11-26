@@ -10,7 +10,7 @@ import {
 } from "@hellobox/db";
 import { isStorageConfigured } from "@hellobox/config";
 import { entitlementsFor, getExtensions } from "@hellobox/extensions";
-import { activatePendingPostmarkInbound, completeDueTakeovers, markIfRoleRevoked, providerFor, syncDomains, workspacesWithPendingContacts } from "@hellobox/mail";
+import { activatePendingPostmarkInbound, completeDueTakeovers, queueDueSupportWebhooks, markIfRoleRevoked, providerFor, syncDomains, workspacesWithPendingContacts } from "@hellobox/mail";
 import { abortMultipartUpload, deleteObject, deletePrefix, objectSize, workspacePrefixes } from "@hellobox/storage";
 import { and, eq, inArray, isNotNull, lt, or, sql } from "drizzle-orm";
 
@@ -165,6 +165,8 @@ export async function runMaintenance(
       .filter(({ provider }) => provider.capabilities.backfill)
       .map(({ connection }) => enqueueBackfill(connection.id)),
   );
+  // Support webhooks whose job was lost, and old events.
+  await queueDueSupportWebhooks().catch((error: unknown) => console.error("[maintenance] Couldn't queue support webhooks:", error));
   // Mail that failed every webhook attempt, for providers that keep it for us.
   for (const { connection, provider } of withProviders) {
     if (!provider.retryFailedInbound) continue;

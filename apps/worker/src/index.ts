@@ -14,6 +14,7 @@ import {
   sendCampaign,
   sendOutbox,
   notifyNewMessage,
+  deliverSupportWebhooks,
   flushChannel,
   sendNotificationDigests,
   sendTestNotification,
@@ -45,6 +46,8 @@ async function runJob(job: Job) {
       }
       case "notify":
         return notifyNewMessage(job.data.messageId);
+      case "support-webhook":
+        return deliverSupportWebhooks(job.data.inboxId);
       case "notify-flush":
         return flushChannel(job.data.channelId);
       case "notify-test":

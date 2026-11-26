@@ -18,6 +18,7 @@ import { isWorkspaceSuspended } from "./workspaces";
 
 import { mergeParticipants } from "./store-inbound";
 import { publishEvent } from "./realtime";
+import { supportMessageAdded } from "./support/read";
 import {
   domainOf,
   makeSnippet,
@@ -210,6 +211,15 @@ export async function sendOutbox(outboxId: string) {
       })
       .onConflictDoNothing()
       .returning({ id: messages.id });
+    // A reply in a support conversation reaches the customer's app too. The email went out
+    // already, so a problem here never undoes storing it.
+    if (message) {
+      await tx
+        .transaction((savepoint) =>
+          supportMessageAdded(savepoint, threadId, { id: message.id, direction: "outbound", fromAddress: row.address, toRecipients: to, ccRecipients: cc, sentAt: now }),
+        )
+        .catch((error: unknown) => console.error("[support] Couldn't record a reply for the app:", error));
+    }
     // The uploaded files become the sent message's attachments, so they can be
     // opened from Sent and are freed along with the conversation.
     if (message && files.length) {

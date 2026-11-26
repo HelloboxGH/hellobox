@@ -1,6 +1,8 @@
 import { supportConversations, supportMessages } from "@hellobox/db";
 import { and, eq } from "drizzle-orm";
 import type { StoreTx } from "../store-inbound";
+import { supportMessageAdded } from "./read";
+import { recordSupportEvent } from "./webhooks";
 
 // Whether an email really came from the address it says. DMARC, or both of the checks it
 // builds on when the domain publishes no policy.
@@ -25,10 +27,12 @@ export async function recordSupportEmail(
     .from(supportConversations)
     .where(eq(supportConversations.threadId, email.threadId));
   if (!conversation || email.isSpam) return;
-  await tx
+  const reopened = await tx
     .update(supportConversations)
     .set({ status: "open" })
-    .where(and(eq(supportConversations.id, conversation.id), eq(supportConversations.status, "solved")));
+    .where(and(eq(supportConversations.id, conversation.id), eq(supportConversations.status, "solved")))
+    .returning({ id: supportConversations.id });
+  if (reopened.length) await recordSupportEvent(tx, conversation, "conversation.status_changed", { status: "open" });
   if (!conversation.verified || email.fromAddress !== conversation.email || !isAuthenticated(email.authentication)) return;
   await tx.insert(supportMessages).values({
     workspaceId: conversation.workspaceId,
@@ -36,5 +40,8 @@ export async function recordSupportEmail(
     conversationId: conversation.id,
     messageId: email.messageId,
     source: "email",
+  });
+  await supportMessageAdded(tx, email.threadId, {
+    id: email.messageId, direction: "inbound", fromAddress: email.fromAddress, toRecipients: [], ccRecipients: [], sentAt: new Date(),
   });
 }

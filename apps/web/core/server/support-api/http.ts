@@ -54,6 +54,8 @@ export async function answering(run: () => Promise<Response>): Promise<Response>
 const MINUTE_MS = 60_000;
 export const KEY_LIMIT = 60;
 export const USER_LIMIT = 10;
+// Reading is cheaper, and an app may poll for many customers.
+export const READ_LIMIT = 600;
 
 export const retryAfter = (at: number) => ({ "Retry-After": String(Math.max(1, Math.ceil((at - Date.now()) / 1000))) });
 
@@ -63,11 +65,12 @@ async function limit(key: string, max: number, message: string) {
 }
 
 /** The key's inbox, checked and counted before any of the body is read. */
-export async function authenticate(request: Request): Promise<SupportInbox & { keyId: string }> {
+export async function authenticate(request: Request, use: "write" | "read" = "write"): Promise<SupportInbox & { keyId: string }> {
   const [scheme, token, ...rest] = (request.headers.get("authorization") ?? "").trim().split(/\s+/);
   const row = scheme?.toLowerCase() === "bearer" && token && !rest.length ? await findSupportKey(token) : null;
   if (!row) throw new SupportError(401, "invalid_key", "Send a valid key as Authorization: Bearer hbs_…", { "WWW-Authenticate": "Bearer" });
-  await limit(`key:${row.keyId}`, KEY_LIMIT, `A key can send ${KEY_LIMIT} requests a minute`);
+  if (use === "read") await limit(`key-read:${row.keyId}`, READ_LIMIT, `A key can make ${READ_LIMIT} reads a minute`);
+  else await limit(`key:${row.keyId}`, KEY_LIMIT, `A key can send ${KEY_LIMIT} requests a minute`);
   await touchSupportKey(row.keyId);
   return row;
 }

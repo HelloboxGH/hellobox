@@ -107,6 +107,7 @@ export const WORKSPACE_EVENTS = [
   "support.inbox_deleted",
   "support.key_created",
   "support.key_revoked",
+  "support.webhook_changed",
   "workspace.renamed",
   "workspace.transferred",
   "workspace.exported",

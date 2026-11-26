@@ -72,6 +72,76 @@ function Confirm({ title, body, action, onConfirm, open, onOpenChange }: {
   );
 }
 
+// Where the app hears about new messages and status changes. The secret is shown once.
+function Webhook({ inbox, reload }: { inbox: Inbox; reload: () => void }) {
+  const [busy, start] = useRunning();
+  const [url, setUrl] = useState(inbox.webhook?.url ?? "");
+  const [secret, setSecret] = useState<string | null>(null);
+  const saved = inbox.webhook?.url ?? "";
+  const save = (next: string | null) =>
+    start(async () => {
+      const result = await call("/support/webhook", { inboxId: inbox.id, url: next });
+      if (result.secret) setSecret(result.secret);
+      if (!next) setUrl("");
+      reload();
+    });
+  return (
+    <div className="space-y-2 border-t pt-4">
+      <Form
+        className="space-y-2"
+        onSubmit={(event: FormEvent<HTMLFormElement>) => {
+          event.preventDefault();
+          void save(url.trim() || null);
+        }}
+      >
+        <Field>
+          <FieldLabel>Webhook</FieldLabel>
+          <div className="flex w-full flex-wrap gap-2">
+            <Input
+              className="min-w-0 flex-1 basis-60"
+              type="url"
+              inputMode="url"
+              placeholder="https://your-app.com/hellobox"
+              value={url}
+              onChange={(event) => setUrl(event.target.value)}
+            />
+            <Button type="submit" variant="outline" loading={busy} disabled={url.trim() === saved}>Save</Button>
+          </div>
+          <FieldDescription>Your server hears when a customer writes, you reply, or a status changes.</FieldDescription>
+        </Field>
+      </Form>
+      {inbox.webhook?.error && (
+        <Callout tone="warning" icon={<WarningCircle />} title="Your webhook isn't answering">
+          The last try failed: {inbox.webhook.error}. Events are tried again for a day.
+        </Callout>
+      )}
+      {inbox.webhook && (
+        <div className="flex flex-wrap gap-2">
+          <Button size="sm" variant="ghost" loading={busy} onClick={() => start(async () => setSecret((await call("/support/webhook/secret", { inboxId: inbox.id })).secret))}>
+            New secret
+          </Button>
+          <Button size="sm" variant="ghost" loading={busy} onClick={() => void save(null)}>Remove webhook</Button>
+        </div>
+      )}
+      <Dialog open={secret !== null} onOpenChange={(open) => { if (!open) setSecret(null); }}>
+        <DialogPopup>
+          <DialogHeader>
+            <DialogTitle>Your webhook secret</DialogTitle>
+            <DialogDescription>Copy it now: you won&apos;t see it again. Check the X-HelloBox-Signature of every event with it.</DialogDescription>
+          </DialogHeader>
+          <DialogPanel>
+            <div className="flex items-center gap-2">
+              <code className="min-w-0 flex-1 overflow-x-auto whitespace-nowrap rounded-lg bg-muted p-2 font-mono text-xs">{secret}</code>
+              {secret && <CopyButton value={secret} />}
+            </div>
+          </DialogPanel>
+          <DialogFooter><Button onClick={() => setSecret(null)}>Done</Button></DialogFooter>
+        </DialogPopup>
+      </Dialog>
+    </div>
+  );
+}
+
 function InboxSection({ inbox, reload, onKey, onTab }: {
   inbox: Inbox; reload: () => void; onKey: (key: string) => void; onTab: (tab: string) => void;
 }) {
@@ -133,6 +203,7 @@ function InboxSection({ inbox, reload, onKey, onTab }: {
           </MenuPopup>
         </Menu>
       </div>
+      <Webhook key={inbox.webhook?.url ?? ""} inbox={inbox} reload={reload} />
       <Confirm
         open={confirming}
         onOpenChange={setConfirming}

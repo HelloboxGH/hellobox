@@ -114,6 +114,32 @@ describe.skipIf(!hasServices)("setting up support", () => {
     await expect(act("/support/inboxes/create", { mailboxId: other.mailbox.id, name: "x" })).rejects.toThrow("not found");
   });
 
+  test("a webhook takes public https addresses only, and its secret is shown once", async () => {
+    const { id } = await setUp();
+    process.env.NODE_ENV = "production";
+    try {
+      for (const url of ["http://app.example.com/h", "https://127.0.0.1/h", "https://10.0.0.1/h", "https://user:pw@app.example.com/h", "nope"]) {
+        await expect(act("/support/webhook", { inboxId: id, url })).rejects.toThrow();
+      }
+      const first = await act<{ secret: string | null }>("/support/webhook", { inboxId: id, url: "https://app.example.com/h" });
+      expect(first.secret).toStartWith("whsec_");
+      // A new address keeps the secret.
+      expect(await act("/support/webhook", { inboxId: id, url: "https://app.example.com/other" })).toEqual({ secret: null });
+      const listed = await act<{ inboxes: { id: string; webhook: { url: string } | null }[] }>("/support/inboxes");
+      expect(listed.inboxes.find((item) => item.id === id)!.webhook).toMatchObject({ url: "https://app.example.com/other" });
+      expect(JSON.stringify(listed)).not.toContain(first.secret!);
+      const rolled = await act<{ secret: string }>("/support/webhook/secret", { inboxId: id });
+      expect(rolled.secret).not.toBe(first.secret);
+      await act("/support/webhook", { inboxId: id, url: null });
+      const [row] = await db.select().from(supportInboxes).where(eq(supportInboxes.id, id));
+      expect(row).toMatchObject({ webhookUrl: null, webhookSecretEnc: null });
+      signedIn = member;
+      await expect(act("/support/webhook", { inboxId: id, url: "https://app.example.com/h" })).rejects.toThrow("Only admins");
+    } finally {
+      process.env.NODE_ENV = "test";
+    }
+  });
+
   describe("a conversation", () => {
     let count = 0;
     const start = async () => {

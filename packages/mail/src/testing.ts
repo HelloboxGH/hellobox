@@ -45,6 +45,7 @@ export function memoryStorage() {
       return new Response(file as unknown as ReadableStream).body!;
     },
     deleteObject: async (key: string) => { storedFiles.delete(key); },
+    signedDownloadUrl: async (key: string) => `https://storage.test/${key}`,
   }));
 }
 
