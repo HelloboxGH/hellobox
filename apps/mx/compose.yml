@@ -30,7 +30,11 @@ services:
       - ${MX_CERTS:-./certs}:/certs:ro
     # Strangers talk to this, so it can do no more than it needs.
     read_only: true
-    tmpfs: [/run/haraka, /tmp]
+    # Owned by the image's user (node, uid 1000): a plain tmpfs belongs to root, and the
+    # server writes its settings to /run/haraka at start.
+    tmpfs:
+      - /run/haraka:uid=1000,gid=1000,mode=0700,size=64m
+      - /tmp:uid=1000,gid=1000,mode=0700,size=256m
     cap_drop: [ALL]
     security_opt: ["no-new-privileges:true"]
     cpus: 1

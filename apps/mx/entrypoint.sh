@@ -8,12 +8,20 @@ set -eu
 : "${MX_SIGNING_KEY:?Set MX_SIGNING_KEY to the same value as on the HelloBox web app}"
 
 home=/run/haraka
+if ! [ -w "$home" ]; then
+  echo "$home isn't writable by $(id -un) ($(id -u)). Mount a tmpfs there owned by that user, like /run/haraka:uid=$(id -u),gid=$(id -g)" >&2
+  exit 1
+fi
 rm -rf "${home:?}"/*
 cp -r /app/config /app/plugins "$home/"
 echo "$MX_HOSTNAME" > "$home/config/me"
 
 # STARTTLS only with a certificate. Without one, mail still arrives, unencrypted.
 if [ -f /certs/key.pem ] && [ -f /certs/cert.pem ]; then
+  if ! [ -r /certs/key.pem ] || ! [ -r /certs/cert.pem ]; then
+    echo "The certificate in /certs isn't readable by uid $(id -u). Make key.pem and cert.pem readable by it (chown $(id -u) on the host)" >&2
+    exit 1
+  fi
   cp /certs/key.pem "$home/config/tls_key.pem"
   cp /certs/cert.pem "$home/config/tls_cert.pem"
   { echo tls; cat "$home/config/plugins.base"; } > "$home/config/plugins"
