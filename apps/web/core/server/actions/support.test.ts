@@ -216,6 +216,14 @@ describe.skipIf(!hasServices)("setting up support", () => {
       expect(await list()).toContain(threadId);
     });
 
+    test("is listed under Support only, never in the Inbox too", async () => {
+      const { threadId } = await start();
+      const list = async (view: string) =>
+        ((await (listThreads as unknown as Action)({ view })) as { threads: { id: string }[] }).threads.map((item) => item.id);
+      expect(await list("support")).toContain(threadId);
+      expect(await list("inbox")).not.toContain(threadId);
+    });
+
     test("stays as mail when its support inbox is deleted", async () => {
       const { threadId, inbox } = await start();
       await act("/support/inboxes/delete", { id: inbox.id });

@@ -10,8 +10,9 @@ export const isAuthenticated = (auth: { spf?: string; dkim?: string; dmarc?: str
   auth?.dmarc === "pass" || (auth?.dmarc !== "fail" && auth?.spf === "pass" && auth?.dkim === "pass");
 
 // An email that joined a support conversation. The team always sees it, and it reopens a
-// solved one. It counts as the customer's, and so shows up in their app, only when it's
-// really from them.
+// solved one. It counts as the customer's when it's really from the address the
+// conversation is with, verified or not: a form customer answering our email by email is
+// still the customer. Only a verified conversation shows it in their app.
 export async function recordSupportEmail(
   tx: StoreTx,
   email: {
@@ -33,7 +34,7 @@ export async function recordSupportEmail(
     .where(and(eq(supportConversations.id, conversation.id), eq(supportConversations.status, "solved")))
     .returning({ id: supportConversations.id });
   if (reopened.length) await recordSupportEvent(tx, conversation, "conversation.status_changed", { status: "open" });
-  if (!conversation.verified || email.fromAddress !== conversation.email || !isAuthenticated(email.authentication)) return;
+  if (email.fromAddress !== conversation.email || !isAuthenticated(email.authentication)) return;
   await tx.insert(supportMessages).values({
     workspaceId: conversation.workspaceId,
     inboxId: conversation.inboxId,

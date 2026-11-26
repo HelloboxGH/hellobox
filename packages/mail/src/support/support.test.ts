@@ -235,6 +235,20 @@ describe.skipIf(!hasServices)("support messages", () => {
     expect(await answer("colleague@customer.test", PASS)).toBe(false);
   });
 
+  test("a form customer's emailed answer joins their conversation", async () => {
+    const first = await stored({ user: { email: "kai@customer.test" }, subject: "Form" });
+    const c = await conversation(first.conversationId);
+    expect(c.verified).toBe(false);
+    const { message } = await testReply(w, { threadId: c.threadId, replyToMessageId: first.messageId, to: ["kai@customer.test"] });
+    const answer = async (from: string) => {
+      const result = await ingest({ from, subject: "Re: Form", headers: `${PASS}In-Reply-To: ${message.messageIdHeader}\r\n` });
+      expect(result.threadId).toBe(c.threadId);
+      return (await db.select().from(supportMessages).where(eq(supportMessages.messageId, result.messageId))).length === 1;
+    };
+    expect(await answer("kai@customer.test")).toBe(true);
+    expect(await answer("someone@else.test")).toBe(false);
+  });
+
   test("refused when nobody could answer", async () => {
     const problem = async () => supportInboxProblem(await inbox.row());
     expect(await problem()).toBeNull();

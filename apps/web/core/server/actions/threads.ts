@@ -68,6 +68,9 @@ export const inInbox = (now: Date) =>
     sql`exists (select 1 from ${messages} where ${messages.threadId} = ${threads.id} and ${messages.direction} = 'inbound')`,
   );
 
+// Support conversations have their own view, so the Inbox holds ordinary mail only.
+export const notSupport = sql`not exists (select 1 from ${supportConversations} where ${supportConversations.threadId} = ${threads.id})`;
+
 export const listThreads = workspaceAction("/threads/list")
   .input(
     z.object({
@@ -101,7 +104,7 @@ export const listThreads = workspaceAction("/threads/list")
     ];
     switch (input.view) {
       case "inbox":
-        filters.push(inInbox(now));
+        filters.push(inInbox(now), notSupport);
         break;
       // Open work, so both follow the Inbox: archiving a conversation takes it off the list.
       case "assigned":

@@ -66,7 +66,7 @@ import {
   accessibleMailboxIds,
   type WorkspaceContext,
 } from "../middlewares";
-import { inInbox, onShownDomain } from "./threads";
+import { inInbox, notSupport, onShownDomain } from "./threads";
 
 const hashToken = (token: string) => createHash("sha256").update(token).digest("hex");
 
@@ -117,6 +117,7 @@ export const bootstrap = workspaceAction("/app/bootstrap").handler(async ({ ctx 
                   onShownDomain(),
                   isNull(threadUserState.readAt),
                   inInbox(new Date()),
+                  notSupport,
                 ),
               )
               .groupBy(threads.workspaceId)
@@ -172,7 +173,7 @@ export const bootstrap = workspaceAction("/app/bootstrap").handler(async ({ ctx 
         ? db
             // Unread only, and only what the matching view lists.
             .select({
-              inboxUnread: sql<number>`count(*) filter (where ${inInbox(new Date())})::int`,
+              inboxUnread: sql<number>`count(*) filter (where ${inInbox(new Date())} and ${notSupport})::int`,
               spam: sql<number>`count(*) filter (where ${threads.folder} = 'spam')::int`,
               starred: sql<number>`count(*) filter (where ${threadUserState.starred} and ${threads.folder} not in ('spam', 'trash'))::int`,
               assigned: sql<number>`count(*) filter (where ${threads.assignedTo} = ${ctx.user.id} and ${inInbox(new Date())})::int`,
