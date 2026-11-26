@@ -224,7 +224,16 @@ function MessageView({
           <SenderAvatar name={name} />
         </button>
         <div className="min-w-0 flex-1">
-          <div className="flex items-baseline gap-2">
+          {/* Clicking the sender line closes the message again, like the avatar does. The avatar
+              is the keyboard way in; badges and links inside keep their own clicks. */}
+          <div
+            className="flex cursor-pointer items-baseline gap-2"
+            onClick={(event) => {
+              if ((event.target as HTMLElement).closest("button, a, [role='button']")) return;
+              if (window.getSelection()?.toString()) return;
+              onToggle();
+            }}
+          >
             <p className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-1.5 text-sm">
               <span className="truncate font-semibold text-foreground">{name}</span>
               {message.fromName && <span className="min-w-0 truncate text-muted-foreground text-xs">&lt;{message.fromAddress}&gt;</span>}
