@@ -1,27 +1,33 @@
 # HelloBox's mail server on its own, next to a HelloBox that runs anywhere. It needs no
-# database or Redis: only HELLOBOX_URL and the signing key. Run from this folder with the
-# settings in .env:
+# database or Redis: only HelloBox's address and the signing key. Set these variables in
+# your platform's environment settings (Dokploy: the Environment tab), or in a .env file
+# next to this one with `docker compose up -d`:
 #
-#   MX_HOSTNAME=mx1.example.com          the name your MX records point at
-#   HELLOBOX_URL=https://hellobox.example.com
-#   MX_SIGNING_KEY=...                   the same value as on the HelloBox web app
-#   MX_OPEN=false                        true once you're ready to take mail
+#   MX_HOSTNAME      the name your MX records point at, like mx1.example.com
+#   HELLOBOX_URL     HelloBox's address, like https://hellobox.example.com
+#   MX_SIGNING_KEY   the same value as on the HelloBox web app (openssl rand -hex 32)
+#   MX_OPEN          true once you're ready to take mail; until then every sender gets 450
+#   MX_IMAGE         optional, the image to run
+#   MX_CERTS         optional, the folder with key.pem and cert.pem (default ./certs)
 #
 # Port 25 is published straight on the host, so the server sees each sender's real IP
-# (SPF and the per-IP limit need it). Put the TLS certificate in ./certs as key.pem and
-# cert.pem, renewed outside the container; without one, STARTTLS is off.
+# (SPF and the per-IP limit need it). The certificate is renewed outside the container;
+# without one, STARTTLS is off.
 name: hellobox-mx
 
 services:
   mx:
-    build: .
-    image: ${MX_IMAGE:-hellobox-mx}
+    image: ${MX_IMAGE:-ghcr.io/helloboxgh/hellobox-cloud-mx:latest}
     restart: unless-stopped
-    env_file: .env
+    environment:
+      MX_HOSTNAME: ${MX_HOSTNAME:?Set MX_HOSTNAME}
+      HELLOBOX_URL: ${HELLOBOX_URL:?Set HELLOBOX_URL}
+      MX_SIGNING_KEY: ${MX_SIGNING_KEY:?Set MX_SIGNING_KEY}
+      MX_OPEN: ${MX_OPEN:-false}
     ports:
       - "25:2525"
     volumes:
-      - ./certs:/certs:ro
+      - ${MX_CERTS:-./certs}:/certs:ro
     # Strangers talk to this, so it can do no more than it needs.
     read_only: true
     tmpfs: [/run/haraka, /tmp]
