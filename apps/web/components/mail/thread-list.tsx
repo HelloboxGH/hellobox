@@ -1,7 +1,7 @@
 "use client";
 
 import {
-  Archive, Chats, Check, CheckCircle, ClockCountdown, DotsThree, EnvelopeSimple, EnvelopeSimpleOpen, FileText, MagnifyingGlass,
+  ArrowClockwise, Archive, Chats, Check, CheckCircle, ClockCountdown, DotsThree, EnvelopeSimple, EnvelopeSimpleOpen, FileText, MagnifyingGlass,
   Paperclip, ShieldCheck, ShieldWarning, Star, Timer, Trash, TrashSimple, Tray, UserCircle, UsersThree, List, X,
 } from "@phosphor-icons/react";
 import { type ComponentType, type PointerEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -76,7 +76,7 @@ export function ThreadList({
   labels: Bootstrap["labels"];
   onSelect: (id: string) => void;
   onCompose: (state: Omit<ComposeState, "key">) => void;
-  onChanged: () => void;
+  onChanged: () => void | Promise<unknown>;
   onThreads: (ids: string[]) => void;
 }) {
   const [threads, setThreads] = useState<ThreadSummary[]>([]);
@@ -90,6 +90,16 @@ export function ThreadList({
   // What's waiting comes first in Support.
   const [status, setStatus] = useState<SupportStatus | undefined>("open");
   const latest = useRef(0);
+  const [refreshing, setRefreshing] = useState(false);
+  // New mail usually arrives on its own; this is for when someone wants to be sure.
+  const refreshNow = async () => {
+    setRefreshing(true);
+    try {
+      await onChanged();
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   useEffect(() => {
     const timer = setTimeout(() => setSearch(query.trim()), 200);
@@ -305,6 +315,16 @@ export function ThreadList({
               <List className="size-5" />
             </Button>
             <h1 className="font-heading font-semibold text-foreground text-lg tracking-tight">{title}</h1>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button variant="ghost" size="icon-sm" aria-label="Refresh" className="ms-auto -me-1" disabled={refreshing} onClick={() => void refreshNow()}>
+                    <ArrowClockwise className={cn("size-4", refreshing && "animate-spin")} />
+                  </Button>
+                }
+              />
+              <TooltipPopup>Refresh</TooltipPopup>
+            </Tooltip>
           </div>
         )}
         {!isSpecial && (
