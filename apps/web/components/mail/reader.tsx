@@ -33,7 +33,7 @@ import { LabelChip, LabelIcon } from "./label-style";
 import { IconAction } from "./icon-action";
 import { MentionInput, withMentions } from "./mention-input";
 import { SenderAvatar } from "./sender-avatar";
-import { replyAddresses } from "@/core/reply";
+import { quotedTextHtml, replyAddresses } from "@/core/reply";
 import { cn } from "@/lib/utils";
 import { SupportPanel } from "./support-panel";
 import { type ComposeState, escapeHtml, formatFullTime, formatListTime, SNOOZES, SUPPORT_STATUS_LABELS, type SupportStatus } from "./types";
@@ -381,7 +381,7 @@ async function openMessages(detail: ThreadDetail): Promise<ThreadDetail> {
 }
 
 const quote = (message: ThreadMessage) =>
-  `<p><br></p><blockquote>On ${escapeHtml(formatFullTime(message.sentAt))}, ${escapeHtml(message.fromAddress)} wrote:<br>${escapeHtml(message.textBody ?? message.snippet).replace(/\n/g, "<br>")}</blockquote>`;
+  `<p><br></p><blockquote>On ${escapeHtml(formatFullTime(message.sentAt))}, ${escapeHtml(message.fromAddress)} wrote:<br>${quotedTextHtml(message.textBody ?? message.snippet)}</blockquote>`;
 
 function ReaderSkeleton() {
   return (
