@@ -2,7 +2,9 @@
 
 import { Chats, DotsThree, Key, Plus, WarningCircle } from "@phosphor-icons/react";
 import { type FormEvent, useCallback, useEffect, useState } from "react";
+import { ClaudeIcon, CursorIcon, GeminiIcon, OpenAIIcon } from "@/components/brand-icons";
 import { Callout } from "@/components/callout";
+import { CodeBlock } from "@/components/code-block";
 import { Segmented } from "@/components/segmented";
 import {
   AlertDialog, AlertDialogClose, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogPopup, AlertDialogTitle,
@@ -28,28 +30,68 @@ type Inbox = Support["inboxes"][number];
 const formatDay = (value: string | Date) => new Date(value).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
 
 const WAYS = [
-  { value: "prompt", label: "AI coding tool" },
+  { value: "prompt", label: "Coding agent" },
   { value: "node", label: "Node.js" },
   { value: "curl", label: "Try it now" },
 ] as const;
 
+const AGENTS = [
+  { name: "Claude Code", icon: ClaudeIcon },
+  { name: "Codex", icon: OpenAIIcon },
+  { name: "Cursor", icon: CursorIcon },
+  { name: "Gemini CLI", icon: GeminiIcon },
+];
+
 const WAY_HINTS = {
-  prompt: "Paste this into Claude Code, Cursor or another coding tool, in your app's folder.",
   node: "Call this from your server when someone sends your form.",
   curl: "Paste this into a terminal, with your own email address. The message shows up in HelloBox, ready to answer.",
 };
+
+// A prompt, not code: the agent reads it in the app's folder and writes the form and the route.
+function AgentPrompt({ prompt }: { prompt: string }) {
+  return (
+    <div className="space-y-3">
+      <p className="text-muted-foreground text-sm">
+        Copy this prompt and paste it into your coding agent, opened in your app&apos;s folder. It builds the form and the server route.
+      </p>
+      <div className="overflow-hidden rounded-lg border bg-card">
+        <div className="flex items-center gap-2.5 border-b px-3 py-2">
+          <span className="flex items-center gap-1.5">
+            {AGENTS.map(({ name, icon: Icon }) => (
+              <span key={name} title={name} className="flex size-6 items-center justify-center rounded-md bg-muted">
+                <Icon className="size-3.5 text-foreground" />
+              </span>
+            ))}
+          </span>
+          <p className="min-w-0 truncate font-medium text-sm">Prompt for your coding agent</p>
+        </div>
+        <p className="max-h-60 overflow-auto whitespace-pre-wrap break-words px-3 py-2.5 text-muted-foreground text-sm leading-relaxed">{prompt}</p>
+      </div>
+      <CopyButton value={prompt} label="Copy prompt" />
+    </div>
+  );
+}
 
 // Only shown after a click, so this never renders on the server.
 function SetupCode({ apiKey }: { apiKey: string }) {
   const [way, setWay] = useState<(typeof WAYS)[number]["value"]>("prompt");
   const { origin } = window.location;
-  const code = { prompt: supportPrompt(origin), node: supportNode(origin), curl: supportCurl(origin, apiKey) }[way];
   return (
     <div className="space-y-3">
       <Segmented label="How to add it" value={way} onChange={setWay} options={[...WAYS]} />
-      <p className="text-muted-foreground text-sm">{WAY_HINTS[way]}</p>
-      <pre className="max-h-72 overflow-auto whitespace-pre-wrap break-words rounded-lg bg-muted p-3 font-mono text-xs leading-relaxed">{code}</pre>
-      <CopyButton value={code} />
+      {way === "prompt" ? (
+        <AgentPrompt prompt={supportPrompt(origin)} />
+      ) : (
+        <>
+          <p className="text-muted-foreground text-sm">{WAY_HINTS[way]}</p>
+          <CodeBlock
+            className="max-h-72"
+            language={way === "node" ? "js" : "bash"}
+            code={way === "node" ? supportNode(origin) : supportCurl(origin, apiKey)}
+          />
+          <CopyButton value={way === "node" ? supportNode(origin) : supportCurl(origin, apiKey)} />
+        </>
+      )}
     </div>
   );
 }
@@ -279,8 +321,8 @@ function InboxSection({ inbox, reload, onKey, onTab }: {
         </Menu>
       </div>
       <PublicForm inbox={inbox} reload={reload} />
-      <Sites key={inbox.sites.join(" ")} inbox={inbox} reload={reload} />
-      <Webhook key={inbox.webhook?.url ?? ""} inbox={inbox} reload={reload} />
+      <Sites key={`sites:${inbox.sites.join(" ")}`} inbox={inbox} reload={reload} />
+      <Webhook key={`webhook:${inbox.webhook?.url ?? ""}`} inbox={inbox} reload={reload} />
       <Confirm
         open={confirming}
         onOpenChange={setConfirming}
