@@ -14,6 +14,7 @@
     "@base-ui/react": "^1.9.0",
     "@better-auth/sso": "^1.7.18",
     "@daypicker/react": "^10.0.2",
+    "@fastify/busboy": "3.2.6",
     "@hellobox/config": "workspace:*",
     "@hellobox/db": "workspace:*",
     "@hellobox/email": "workspace:*",

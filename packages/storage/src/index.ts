@@ -138,6 +138,33 @@ export async function readObject(key: string) {
   return res.Body.transformToWebStream();
 }
 
+/** The first bytes of a file, to see what it really is. */
+export async function readStart(key: string, bytes: number) {
+  const res = await s3().send(
+    new GetObjectCommand({ Bucket: bucket(), Key: key, Range: `bytes=0-${bytes - 1}` }),
+  );
+  return res.Body ? res.Body.transformToByteArray() : new Uint8Array();
+}
+
+const PREVIEW_TTL_SECONDS = 5 * 60;
+
+/**
+ * For an <img>, with the type read from the file's own bytes. Opened on its own it's still a
+ * download, so it's never a page on the storage host, whatever headers that sends.
+ */
+export function signedPreviewUrl(key: string, imageType: "image/png" | "image/jpeg" | "image/gif" | "image/webp") {
+  return getSignedUrl(
+    presigner(),
+    new GetObjectCommand({
+      Bucket: bucket(),
+      Key: key,
+      ResponseContentDisposition: "attachment",
+      ResponseContentType: imageType,
+    }),
+    { expiresIn: PREVIEW_TTL_SECONDS },
+  );
+}
+
 export function signedDownloadUrl(
   key: string,
   filename: string,

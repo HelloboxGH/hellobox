@@ -26,7 +26,11 @@ if (hasServices) {
 export const testDb = () => (hasServices ? getDb() : (undefined as never));
 
 export const storedFiles = new Map<string, Uint8Array>();
-const bytes = async (body: unknown) => new Uint8Array(await new Response(body as ReadableStream).arrayBuffer());
+async function bytes(body: unknown) {
+  const chunks: Uint8Array[] = [];
+  for await (const chunk of body as AsyncIterable<Uint8Array>) chunks.push(chunk);
+  return new Uint8Array(Buffer.concat(chunks));
+}
 
 /** Call before importing the code under test. */
 export function memoryStorage() {

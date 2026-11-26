@@ -27,6 +27,7 @@ export * from "./recipients";
 export * from "./reputation";
 export * from "./sanitize";
 export * from "./send";
+export * from "./image-type";
 export * from "./spam";
 export * from "./store-inbound";
 export * from "./support";

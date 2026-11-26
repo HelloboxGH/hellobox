@@ -13,7 +13,9 @@ export type SupportErrorCode =
   | "rate_limited"
   | "monthly_limit"
   | "too_large"
-  | "unsupported_type";
+  | "unsupported_type"
+  | "unsafe_file"
+  | "storage_full";
 
 export class SupportError extends Error {
   constructor(
@@ -78,6 +80,9 @@ export function assertAvailable(row: SupportInbox) {
 // By the developer's own id, or by address when they didn't give one.
 export const limitUser = (inboxId: string, user: { id?: string; email: string }) =>
   limit(`user:${inboxId}:${user.id ? `id:${user.id}` : `email:${user.email}`}`, USER_LIMIT, `A customer can send ${USER_LIMIT} messages a minute`);
+
+// 50,000 characters of text, escaped in the worst way, with room for the rest.
+export const MAX_JSON_BYTES = 512 * 1024;
 
 const READ_TIMEOUT_MS = 20_000;
 

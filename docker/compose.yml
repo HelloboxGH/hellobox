@@ -7,6 +7,9 @@ name: hellobox
 
 x-app: &app
   restart: unless-stopped
+  # Files from strangers pass through these, so they can do no more than they need.
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
   # Everything in .env reaches the app. The addresses of the services below are set here,
   # so DATABASE_URL, REDIS_URL and RSPAMD_URL don't need to be in .env.
   env_file: .env
@@ -20,6 +23,8 @@ services:
   web:
     <<: *app
     image: helloboxapp/hellobox-web:${HELLOBOX_VERSION:-latest}
+    # Its filesystem stays writable: Next keeps its page cache next to the app.
+    mem_limit: ${WEB_MEMORY:-1g}
     # Only on this machine. Put a reverse proxy in front of it (see the guide).
     ports:
       - "127.0.0.1:${WEB_PORT:-3000}:3000"
@@ -38,6 +43,9 @@ services:
   worker:
     <<: *app
     image: helloboxapp/hellobox-worker:${HELLOBOX_VERSION:-latest}
+    mem_limit: ${WORKER_MEMORY:-2g}
+    read_only: true
+    tmpfs: [/tmp]
     depends_on:
       postgres:
         condition: service_healthy

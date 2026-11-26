@@ -1,9 +1,9 @@
-import { earlierResult, type PostResult, postSupportMessage } from "@hellobox/mail";
-import { answer, answering, assertAvailable, authenticate, contentType, limitUser, readBody, retryAfter, SupportError } from "./http";
+import { earlierResult, type PostResult, postSupportMessage, type SupportInbox } from "@hellobox/mail";
+import { answer, answering, assertAvailable, authenticate, contentType, limitUser, MAX_JSON_BYTES, readBody, retryAfter, SupportError } from "./http";
 import { parseMessage } from "./schema";
+import { withUploadSlot } from "./slots";
+import { assertUploadLength, receiveWithFiles } from "./upload";
 
-// 50,000 characters of text, escaped in the worst way, with room for the rest.
-const MAX_JSON_BYTES = 512 * 1024;
 
 type Post = typeof postSupportMessage;
 
@@ -26,17 +26,30 @@ export function messageAnswer(result: PostResult) {
   }
 }
 
+async function postJson(row: SupportInbox, request: Request, post: Post) {
+  const message = parseMessage(await readBody(request, MAX_JSON_BYTES));
+  const earlier = await earlierResult(row, message);
+  if (earlier) return messageAnswer(earlier);
+  await limitUser(row.inbox.id, message.user);
+  return messageAnswer(await post(row, message, "api"));
+}
+
 /** POST /api/support/v1/messages. Answers with success only once the message is stored. */
 export const postMessage = (request: Request, post: Post = postSupportMessage) =>
   answering(async () => {
     const row = await authenticate(request);
     assertAvailable(row);
-    if (contentType(request) !== "application/json") {
-      throw new SupportError(415, "unsupported_type", "Send JSON, with Content-Type: application/json");
+    switch (contentType(request)) {
+      case "application/json":
+        return postJson(row, request, post);
+      case "multipart/form-data":
+        assertUploadLength(request);
+        return withUploadSlot(row.keyId, async () => messageAnswer(await receiveWithFiles(row, request, {
+          parse: parseMessage,
+          limit: (message) => limitUser(row.inbox.id, message.user),
+          post: (message, upload) => post(row, message, "api", undefined, upload),
+        })));
+      default:
+        throw new SupportError(415, "unsupported_type", "Send application/json, or multipart/form-data with files");
     }
-    const message = parseMessage(await readBody(request, MAX_JSON_BYTES));
-    const earlier = await earlierResult(row, message);
-    if (earlier) return messageAnswer(earlier);
-    await limitUser(row.inbox.id, message.user);
-    return messageAnswer(await post(row, message, "api"));
   });

@@ -54,6 +54,31 @@ If you didn't get an answer, send the same request again with the same `idempote
 the first result, and the message is stored once. The same key with different content answers
 `409`.
 
+### Files
+
+Send the same JSON as `multipart/form-data`, in a field named `message`, and then the files in
+fields named `files`:
+
+```bash
+curl https://hellobox.app/api/support/v1/messages \
+  -H "Authorization: Bearer $HELLOBOX_SUPPORT_KEY" \
+  -F 'message={"user":{"id":"user_42","email":"ada@example.com"},"text":"See the screenshot.","idempotencyKey":"…"}' \
+  -F 'files=@screenshot.png'
+```
+
+Up to 5 files, 10 MB each and 20 MB together. `message` has to come first. Nothing is stored
+unless everything is, so if it fails, send it all again with the same `idempotencyKey`. A key can
+have 2 of these requests open at once. With no file storage set up, send messages without files.
+
+Your own host may allow less. A Vercel Function takes bodies up to 4.5 MB.
+
+Files count toward your storage. When it's full, the request is refused and you can send the
+message without files.
+
+Programs and scripts are refused by name, such as `.exe` and `.js`. **Files aren't scanned for
+malware**, here or in email. Your team sees PNG, JPEG, GIF and WebP images in the conversation,
+and everything else is a download. What a file is comes from its contents, never its name.
+
 ## Who is verified
 
 Whoever your server says, with `user.id`. Only send it for someone signed in to your app, and use
@@ -81,8 +106,10 @@ Errors are JSON, with a sentence that says what to do:
 | 408 | `invalid_request` | The request took too long to arrive. |
 | 409 | `idempotency_key_reused` | The key was used for a different message. |
 | 409 | `unavailable` | The workspace is suspended, the mailbox is gone, or its domain can't send. |
-| 413 | `too_large` | The request is too large. |
-| 415 | `unsupported_type` | Send `application/json`. |
+| 409 | `storage_full` | Send the message again without files. |
+| 413 | `too_large` | The request or a file is too large, or there are too many. |
+| 415 | `unsupported_type` | Send `application/json` or `multipart/form-data`. |
+| 422 | `unsafe_file` | A file of this kind can run programs. |
 | 429 | `rate_limited` | Too many requests. `Retry-After` says when to try again, in seconds. |
 | 429 | `monthly_limit` | The plan's messages for the month are used. |
 | 500 | `server_error` | Something went wrong. Send the same request again. |

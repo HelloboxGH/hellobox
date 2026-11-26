@@ -847,8 +847,8 @@ export const uploads = pgTable(
     workspaceId: text("workspace_id")
       .notNull()
       .references(() => workspaces.id, { onDelete: "cascade" }),
+    // Null for a file an app sent with a support message.
     userId: text("user_id")
-      .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
     storageKey: text("storage_key").notNull(),
     filename: text("filename").notNull(),

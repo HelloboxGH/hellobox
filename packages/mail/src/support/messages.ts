@@ -15,6 +15,7 @@ import { publishEvent } from "../realtime";
 import { classifySpam, senderPolicy } from "../spam";
 import { DuplicateMessage, storeInbound } from "../store-inbound";
 import { makeSnippet } from "../threading";
+import { claimFiles } from "./files";
 import type { SupportInbox } from "./keys";
 import { subjectFrom } from "./text";
 
@@ -28,6 +29,21 @@ export interface SupportMessage {
   metadata?: SupportMetadata;
 }
 
+/** A file that's in storage and not in the inbox yet: see files.ts. */
+export interface SupportFile {
+  uploadId: string;
+  storageKey: string;
+  filename: string;
+  contentType: string;
+  size: number;
+  hash: string;
+}
+
+export interface SupportUpload {
+  messageId: string;
+  files: SupportFile[];
+}
+
 export type SupportSource = "api" | "hosted" | "form";
 
 export type PostResult =
@@ -39,11 +55,14 @@ export type PostResult =
   | { status: "limit"; max: number; resetAt: Date };
 
 // The same content in the same shape, whatever order the keys came in.
-export function contentHash(message: SupportMessage) {
+export function contentHash(message: SupportMessage, files: Pick<SupportFile, "filename" | "hash">[] = []) {
   const { user, text, subject, conversationId, metadata } = message;
   const sorted = Object.entries(metadata ?? {}).sort(([a], [b]) => (a < b ? -1 : 1));
   return createHash("sha256")
-    .update(JSON.stringify([user.id ?? null, user.email, user.name ?? null, text, subject ?? null, conversationId ?? null, metadata ? sorted : null]))
+    .update(JSON.stringify([
+      user.id ?? null, user.email, user.name ?? null, text, subject ?? null, conversationId ?? null, metadata ? sorted : null,
+      files.map((file) => [file.filename, file.hash]),
+    ]))
     .digest("hex");
 }
 
@@ -58,8 +77,16 @@ async function firstResult(inboxId: string, idempotencyKey: string, hash: string
 }
 
 /** What an earlier request with this idempotency key got, if there was one. */
-export const earlierResult = (inbox: SupportInbox, message: SupportMessage) =>
-  firstResult(inbox.inbox.id, message.idempotencyKey, contentHash(message));
+export const earlierResult = (inbox: SupportInbox, message: SupportMessage, files: Pick<SupportFile, "filename" | "hash">[] = []) =>
+  firstResult(inbox.inbox.id, message.idempotencyKey, contentHash(message, files));
+
+export async function idempotencyKeyUsed(inbox: SupportInbox, idempotencyKey: string) {
+  const [row] = await getDb()
+    .select({ id: supportMessages.id })
+    .from(supportMessages)
+    .where(and(eq(supportMessages.inboxId, inbox.inbox.id), eq(supportMessages.idempotencyKey, idempotencyKey)));
+  return Boolean(row);
+}
 
 const monthStart = (now: Date) => new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
 const nextMonth = (now: Date) => new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
@@ -99,11 +126,13 @@ export async function postSupportMessage(
   message: SupportMessage,
   source: SupportSource,
   after: After = defaultAfter,
+  upload?: SupportUpload,
 ): Promise<PostResult> {
   const db = getDb();
   const { inbox, mailbox } = row;
   const { workspaceId } = inbox;
-  const hash = contentHash(message);
+  const files = upload?.files ?? [];
+  const hash = contentHash(message, files);
   const earlier = await firstResult(inbox.id, message.idempotencyKey, hash);
   if (earlier) return earlier;
 
@@ -144,7 +173,7 @@ export async function postSupportMessage(
   const verdict = await classifySpam({ raw: null, policy: senderPolicy(email, senderEntries), attachmentNames: [] });
   const action = applyRules(workspaceRules, { fromAddress: email, to: [mailbox.address], subject });
   const folder = verdict.isSpam ? "spam" : (action.folder ?? "inbox");
-  const messageId = crypto.randomUUID();
+  const messageId = upload?.messageId ?? crypto.randomUUID();
   const conversationId = existing?.id ?? crypto.randomUUID();
   const from = { address: email, ...(name ? { name } : {}) };
   const to = { address: mailbox.address };
@@ -166,8 +195,8 @@ export async function postSupportMessage(
     },
     mailboxId: mailbox.id,
     participants: [from, to],
-    files: [],
-    storedBytes: 0,
+    files: files.map(({ filename, contentType, size, storageKey }) => ({ workspaceId, messageId, filename, contentType, size, storageKey })),
+    storedBytes: files.reduce((sum, file) => sum + file.size, 0),
     folder,
     category: action.category ?? "primary",
     labelId: action.labelId,
@@ -175,6 +204,7 @@ export async function postSupportMessage(
     // The customer is waiting, so writing again also brings it back from Trash.
     folderFor: (current, next) => (next === "inbox" && (current === "archive" || current === "trash") ? "inbox" : current),
     within: async (tx, id) => {
+      if (files.length) await claimFiles(tx, files);
       if (existing) {
         await tx
           .update(supportConversations)

@@ -1,7 +1,7 @@
 "use client";
 
 import {
-  Archive, ArrowArcLeft, ArrowArcRight, ArrowBendDoubleUpLeft, ArrowLeft, CheckCircle, ClockCountdown, DownloadSimple,
+  Archive, ArrowArcLeft, ArrowArcRight, ArrowBendDoubleUpLeft, ArrowLeft, CheckCircle, ClockCountdown,
   CaretDown, DotsThree, EnvelopeSimple, FileHtml, FilePdf, ImageSquare, Lightning, LockSimple, NotePencil, Question, Robot, SealCheck, ShieldWarning,
   Sparkle, Star, Tag, Timer, Trash, Tray, WarningCircle,
 } from "@phosphor-icons/react";
@@ -27,14 +27,14 @@ import { toastManager } from "@/components/ui/toast";
 import { errorMessage, notify, notifyError } from "@/core/client/notify";
 import { openSealed, useVault } from "@/core/client/vault";
 import { UnlockVault } from "@/components/settings/encryption";
+import { AttachmentList } from "./attachment-list";
 import { downloadHtml, exportFilename, printAsPdf, threadDocument } from "./export";
 import { LabelChip, LabelIcon } from "./label-style";
 import { IconAction } from "./icon-action";
 import { MentionInput, withMentions } from "./mention-input";
 import { SenderAvatar } from "./sender-avatar";
-import { fileIcon } from "./file-icon";
 import { cn } from "@/lib/utils";
-import { type ComposeState, escapeHtml, formatBytes, formatFullTime, formatListTime, SNOOZES } from "./types";
+import { type ComposeState, escapeHtml, formatFullTime, formatListTime, SNOOZES } from "./types";
 
 const UNASSIGNED = "unassigned";
 
@@ -338,21 +338,7 @@ function MessageView({
           <p className="whitespace-pre-wrap text-foreground text-sm leading-relaxed">{message.textBody}</p>
         )}
         {message.attachments.length > 0 && (
-          <ul className="flex flex-wrap gap-2">
-            {message.attachments.map((file) => {
-              const Icon = fileIcon(file.filename, file.contentType);
-              return (
-              <li key={file.id}>
-                <Button variant="outline" size="sm" render={<a href={`/api/attachments/${file.id}`} />} className="max-w-64">
-                  <Icon />
-                  <span className="truncate">{file.filename}</span>
-                  <span className="shrink-0 text-muted-foreground text-xs">{formatBytes(file.size)}</span>
-                  <DownloadSimple />
-                </Button>
-              </li>
-              );
-            })}
-          </ul>
+          <AttachmentList files={message.attachments} previews={!spam} />
         )}
         {message.direction === "outbound" && message.deliveryStatus && (
           <DeliveryStatus status={message.deliveryStatus} recipients={message.deliveryRecipients} failed={Boolean(failed)} />
