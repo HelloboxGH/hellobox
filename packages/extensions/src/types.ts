@@ -21,7 +21,12 @@ export type Feature =
   | "team" // invites, shared mailboxes, assignment, team views, the bell, "sent by", team emails
   | "roles" // making someone an admin
   | "instantEmail"; // instant email notifications (otherwise the hourly digest)
-export type Limit = "members" | "domains" | "storageBytes" | "contacts";
+export type Limit =
+  | "members"
+  | "domains"
+  | "storageBytes"
+  | "contacts"
+  | "supportMessages"; // messages customers send through support, a month
 
 export interface Entitlements {
   plan: string | null; // shown in the UI; null = no plan line anywhere
@@ -32,7 +37,7 @@ export interface Entitlements {
 
 export const UNLIMITED: Entitlements = {
   plan: null,
-  limits: { members: Infinity, domains: Infinity, storageBytes: Infinity, contacts: Infinity },
+  limits: { members: Infinity, domains: Infinity, storageBytes: Infinity, contacts: Infinity, supportMessages: Infinity },
   features: { team: true, roles: true, instantEmail: true },
   prompts: false,
 };

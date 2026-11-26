@@ -18,5 +18,6 @@ export async function proxy(request: Request) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
+  // Next caps the bodies of requests that go through here, and support messages carry files.
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|api/support/).*)"],
 };

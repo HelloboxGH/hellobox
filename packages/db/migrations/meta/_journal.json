@@ -225,6 +225,13 @@
       "when": 1795431005021,
       "tag": "0031_mail_import",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1795626357132,
+      "tag": "0032_support",
+      "breakpoints": true
     }
   ]
 }

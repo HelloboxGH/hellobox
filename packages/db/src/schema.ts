@@ -1313,3 +1313,121 @@ export const providerRequests = pgTable(
   },
   (t) => [index("provider_requests_created_idx").on(t.createdAt)],
 );
+
+// Support: messages from a developer's app become conversations, answered by email. The
+// conversation's mail lives in threads and messages like any other; these tables add who
+// the customer is and which messages they wrote.
+
+export const supportInboxes = pgTable(
+  "support_inboxes",
+  {
+    id: id(),
+    workspaceId: text("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "cascade" }),
+    // Always a shared mailbox.
+    mailboxId: text("mailbox_id")
+      .notNull()
+      .references(() => mailboxes.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    index("support_inboxes_workspace_idx").on(t.workspaceId),
+    index("support_inboxes_mailbox_idx").on(t.mailboxId),
+  ],
+);
+
+// A secret key of one support inbox, for a developer's server. Only its hash is kept.
+export const supportKeys = pgTable(
+  "support_keys",
+  {
+    id: id(),
+    workspaceId: text("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "cascade" }),
+    inboxId: text("inbox_id")
+      .notNull()
+      .references(() => supportInboxes.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    keyHash: text("key_hash").notNull(),
+    // The first characters, so people can tell their keys apart.
+    prefix: text("prefix").notNull(),
+    createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
+    lastUsedAt: time("last_used_at"),
+    revokedAt: time("revoked_at"),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    uniqueIndex("support_keys_hash_idx").on(t.keyHash),
+    index("support_keys_inbox_idx").on(t.inboxId),
+  ],
+);
+
+export const supportStatusEnum = pgEnum("support_status", ["open", "in_progress", "solved"]);
+
+export type SupportMetadata = Record<string, string | number | boolean | null>;
+
+export const supportConversations = pgTable(
+  "support_conversations",
+  {
+    id: id(),
+    workspaceId: text("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "cascade" }),
+    inboxId: text("inbox_id")
+      .notNull()
+      .references(() => supportInboxes.id, { onDelete: "cascade" }),
+    threadId: text("thread_id")
+      .notNull()
+      .references(() => threads.id, { onDelete: "cascade" }),
+    // The developer's own id for the customer. Unset means nobody vouched for them.
+    externalUserId: text("external_user_id"),
+    // Where replies go. For a verified customer, the newest address the developer gave.
+    email: text("email").notNull(),
+    name: text("name"),
+    verified: boolean("verified").notNull().default(false),
+    status: supportStatusEnum("status").notNull().default("open"),
+    metadata: jsonb("metadata").$type<SupportMetadata>().notNull().default({}),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    uniqueIndex("support_conversations_thread_idx").on(t.threadId),
+    index("support_conversations_user_idx").on(t.inboxId, t.externalUserId),
+    index("support_conversations_workspace_idx").on(t.workspaceId, t.status),
+  ],
+);
+
+// The messages the customer wrote. An email answer is here only when it was really theirs;
+// other mail in the conversation is the team's alone.
+export const supportMessages = pgTable(
+  "support_messages",
+  {
+    id: id(),
+    workspaceId: text("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "cascade" }),
+    inboxId: text("inbox_id")
+      .notNull()
+      .references(() => supportInboxes.id, { onDelete: "cascade" }),
+    conversationId: text("conversation_id")
+      .notNull()
+      .references(() => supportConversations.id, { onDelete: "cascade" }),
+    messageId: text("message_id")
+      .notNull()
+      .references(() => messages.id, { onDelete: "cascade" }),
+    source: text("source").$type<"api" | "hosted" | "form" | "email">().notNull(),
+    // Unset for email, which has its own protection from duplicates.
+    idempotencyKey: text("idempotency_key"),
+    contentHash: text("content_hash"),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    uniqueIndex("support_messages_message_idx").on(t.messageId),
+    uniqueIndex("support_messages_key_idx").on(t.inboxId, t.idempotencyKey),
+    index("support_messages_conversation_idx").on(t.conversationId),
+    index("support_messages_usage_idx").on(t.workspaceId, t.createdAt),
+  ],
+);

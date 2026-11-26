@@ -1,4 +1,5 @@
-import { expect, mock, test } from "bun:test";
+import { afterAll, expect, mock, test } from "bun:test";
+import { install, resetExtensions } from "@hellobox/extensions";
 
 // Runs the real ingest against Postgres and Redis, with file storage kept in memory. Skipped
 // without DATABASE_URL and REDIS_URL.
@@ -23,6 +24,9 @@ const { encrypt } = await import("@hellobox/config");
 const { connections, domains, getDb, mailboxes, messages, threads, user, workspaces } = await import("@hellobox/db");
 const { ingestEmail } = await import("./ingest");
 const { eq } = await import("drizzle-orm");
+
+install({});
+afterAll(resetExtensions);
 
 const run = crypto.randomUUID().slice(0, 8);
 const domainName = `acme-${run}.test`;
@@ -80,4 +84,4 @@ test.skipIf(!process.env.DATABASE_URL || !process.env.REDIS_URL)("mail to a dele
 
   const [unchanged] = await db.select().from(threads).where(eq(threads.id, oldThread!.id));
   expect(unchanged?.messageCount).toBe(oldThread!.messageCount);
-});
+}, 60_000);

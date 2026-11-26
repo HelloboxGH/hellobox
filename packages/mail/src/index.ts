@@ -28,6 +28,8 @@ export * from "./reputation";
 export * from "./sanitize";
 export * from "./send";
 export * from "./spam";
+export * from "./store-inbound";
+export * from "./support";
 export * from "./suppressions";
 export * from "./threading";
 export * from "./workspaces";

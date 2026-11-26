@@ -9,14 +9,14 @@ import {
   uploads,
 } from "@hellobox/db";
 import { touchWorkspace } from "./activity";
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import { markIfRoleRevoked, providerForConnection } from "./connections";
 import { bodyColumns, sealingKeysForMailbox } from "./encryption";
 import { deliveryStatusFor, mergeDelivery, summarizeDelivery, suppressionReason } from "./delivery";
 import { suppressFromEvent } from "./suppressions";
 import { isWorkspaceSuspended } from "./workspaces";
 
-import { mergeParticipants } from "./ingest";
+import { mergeParticipants } from "./store-inbound";
 import { publishEvent } from "./realtime";
 import {
   domainOf,
@@ -24,6 +24,31 @@ import {
   normalizeSubject,
   parseAddress,
 } from "./threading";
+
+// A message from an app has no Message-ID to answer, so the reply points at the latest
+// email in the conversation that one of its recipients has. Without it, their mail client
+// would start a new conversation.
+async function earlierEmail(threadId: string, item: { toRecipients: string[]; ccRecipients: string[] }) {
+  const recipients = new Set([...item.toRecipients, ...item.ccRecipients].map((value) => parseAddress(value).address));
+  const emails = await getDb()
+    .select({
+      direction: messages.direction,
+      messageIdHeader: messages.messageIdHeader,
+      references: messages.references,
+      fromAddress: messages.fromAddress,
+      toRecipients: messages.toRecipients,
+      ccRecipients: messages.ccRecipients,
+    })
+    .from(messages)
+    .where(and(eq(messages.threadId, threadId), isNotNull(messages.messageIdHeader)))
+    .orderBy(desc(messages.sentAt))
+    .limit(100);
+  return emails.find(
+    (email) =>
+      (email.direction === "inbound" && recipients.has(email.fromAddress)) ||
+      [...email.toRecipients, ...email.ccRecipients].some((person) => recipients.has(person.address)),
+  );
+}
 
 export async function sendOutbox(outboxId: string) {
   const db = getDb();
@@ -62,15 +87,11 @@ export async function sendOutbox(outboxId: string) {
           .where(eq(messages.id, item.replyToMessageId))
       )[0]
     : undefined;
-  const references = parent
-    ? [
-        ...parent.references,
-        ...(parent.messageIdHeader ? [parent.messageIdHeader] : []),
-      ]
-    : [];
+  const answered = parent?.messageIdHeader ? parent : parent && (await earlierEmail(parent.threadId, item));
+  const references = answered?.messageIdHeader ? [...answered.references, answered.messageIdHeader] : (parent?.references ?? []);
   const messageIdHeader = `<${item.id}@${domainOf(row.address)}>`;
   const headers: Record<string, string> = { "Message-ID": messageIdHeader };
-  if (parent?.messageIdHeader) headers["In-Reply-To"] = parent.messageIdHeader;
+  if (answered?.messageIdHeader) headers["In-Reply-To"] = answered.messageIdHeader;
   if (references.length) headers.References = references.join(" ");
   // Lets anyone reading the raw message see that an agent sent it for the user.
   if (item.agentTokenId) headers["X-HelloBox-Sent-By"] = "agent";
@@ -172,7 +193,7 @@ export async function sendOutbox(outboxId: string) {
         direction: "outbound",
         providerMessageId,
         messageIdHeader: storedMessageId,
-        inReplyTo: parent?.messageIdHeader ?? null,
+        inReplyTo: answered?.messageIdHeader ?? null,
         references,
         fromAddress: row.address,
         fromName: row.displayName,

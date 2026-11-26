@@ -298,6 +298,10 @@ describe("closed sign-ups", () => {
 - **Test behaviour, not wiring.** Pass values in (like `signupsClosed(value)` above) rather
   than mocking modules.
 - **No network.** Tests that need a provider's API use a fake `fetch`.
+- **Postgres and Redis are fine, and optional.** Tests that need them are skipped without
+  `DATABASE_URL` and `REDIS_URL`. Run them against your local ones, each file on its own:
+  `bun --env-file=apps/web/.env.local test --isolate packages apps`. They add rows and leave
+  them.
 
 ```bash
 bun test packages apps                          # everything

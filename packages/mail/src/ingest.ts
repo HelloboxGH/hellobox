@@ -8,12 +8,10 @@ import {
   connections,
   rules,
   senderLists,
-  threadLabels,
+  supportConversations,
   threads,
-  threadUserState,
   webhookEvents,
   workspaces,
-  type Address,
 } from "@hellobox/db";
 import type { InboundHint, ProviderKind } from "@hellobox/providers";
 import {
@@ -37,9 +35,11 @@ import { shareWithAdmins } from "./mailbox-access";
 import { publishEvent } from "./realtime";
 import { sanitizeEmailHtml } from "./sanitize";
 import { bounceBuckets, bounceDecision, claimBounce, sendBounce } from "./bounce";
-import { assessInbound, QUARANTINE_HOURS, recordQuarantinedBytes } from "./flood";
+import { assessInbound, recordQuarantinedBytes } from "./flood";
 import { isReportedSender, isSpamExempt, spamReportCount } from "./reputation";
 import { classifySpam, SPAM_SCORE, senderPolicy } from "./spam";
+import { storeInbound } from "./store-inbound";
+import { recordSupportEmail } from "./support/email";
 import {
   domainOf,
   makeSnippet,
@@ -204,6 +204,9 @@ export async function findThreadFor(input: {
       and(
         eq(threads.mailboxId, input.mailboxId),
         eq(threads.normalizedSubject, normalizeSubject(input.subject)),
+        // Anyone can write a subject and a From address. A support conversation is joined by
+        // its message ids alone.
+        sql`not exists (select 1 from ${supportConversations} where ${supportConversations.threadId} = ${threads.id})`,
       ),
     )
     .orderBy(desc(threads.lastMessageAt))
@@ -220,14 +223,6 @@ export async function findThreadFor(input: {
       ),
     )?.id ?? null
   );
-}
-
-export function mergeParticipants(current: Address[], incoming: Address[]) {
-  const merged = new Map(current.map((p) => [p.address, p]));
-  for (const person of incoming) {
-    if (!merged.get(person.address)?.name) merged.set(person.address, person);
-  }
-  return [...merged.values()].slice(0, 50);
 }
 
 // Safe to run repeatedly: the unique message index stops duplicates, and every
@@ -389,10 +384,45 @@ export async function ingestEmail(connectionId: string, emailId: string) {
     sealingKeys,
   );
 
-  const threadId = await db.transaction(async (tx) => {
+  const threadId = await storeInbound({
+    message: {
+      id: messageId,
+      workspaceId,
+      connectionId,
+      direction: "inbound",
+      providerMessageId: emailId,
+      messageIdHeader: email.messageId,
+      inReplyTo,
+      references,
+      fromAddress: from.address,
+      fromName: from.name,
+      toRecipients: to,
+      ccRecipients: cc,
+      replyTo: email.replyTo,
+      subject,
+      snippet,
+      ...body,
+      rawKey,
+      rawSize,
+      storageCounted: !quarantined,
+      spamScore: verdict.score,
+      spamSymbols: verdict.symbols,
+      spamReasons: verdict.reasons,
+      unscanned: verdict.unscanned,
+      authentication: email.authentication ?? null,
+      sentAt,
+    },
+    mailboxId: mailbox.id,
+    participants,
+    files: stored,
+    storedBytes,
+    folder,
+    category,
+    labelId: action.labelId,
+    quarantined,
     // Quarantined mail never joins a conversation: it expires on its own, and mustn't take
     // a real conversation with it or be kept alive by it.
-    const found = quarantined ? null : await findThreadFor({
+    findThread: async () => quarantined ? null : findThreadFor({
       mailboxId: mailbox.id,
       workspaceId,
       inReplyTo,
@@ -400,116 +430,25 @@ export async function ingestEmail(connectionId: string, emailId: string) {
       subject,
       participants: participants.map((p) => p.address),
       sentAt,
-    });
-    let id = found;
-    if (id) {
-      const [thread] = await tx.select().from(threads).where(eq(threads.id, id));
-      await tx
-        .update(threads)
-        .set({
-          snippet,
-          participants: mergeParticipants(thread?.participants ?? [], participants),
-          lastMessageAt: sql`greatest(${threads.lastMessageAt}, ${sentAt.toISOString()}::timestamptz)`,
-          messageCount: sql`${threads.messageCount} + 1`,
-          hasAttachments: sql`${threads.hasAttachments} or ${stored.length > 0}`,
-          // A new reply brings an archived conversation back, but spam stays put.
-          folder:
-            thread?.folder === "archive" && folder === "inbox"
-              ? "inbox"
-              : (thread?.folder ?? folder),
-        })
-        .where(eq(threads.id, id));
-    } else {
-      const [created] = await tx
-        .insert(threads)
-        .values({
-          workspaceId,
-          mailboxId: mailbox.id,
-          subject,
-          normalizedSubject: normalizeSubject(subject),
-          snippet,
-          participants: mergeParticipants([], participants),
-          folder,
-          category,
-          hasAttachments: stored.length > 0,
-          messageCount: 1,
-          lastMessageAt: sentAt,
-          expiresAt: quarantined ? new Date(Date.now() + QUARANTINE_HOURS * 3_600_000) : null,
-        })
-        .returning({ id: threads.id });
-      id = created?.id ?? null;
-    }
-    if (!id) throw new Error("Could not create a thread");
-
-    const [inserted] = await tx
-      .insert(messages)
-      .values({
-        id: messageId,
-        workspaceId,
-        threadId: id,
-        connectionId,
-        direction: "inbound",
-        providerMessageId: emailId,
-        messageIdHeader: email.messageId,
-        inReplyTo,
-        references,
+    }),
+    within: async (tx, threadId) => {
+      await recordSupportEmail(tx, {
+        threadId,
+        messageId,
         fromAddress: from.address,
-        fromName: from.name,
-        toRecipients: to,
-        ccRecipients: cc,
-        replyTo: email.replyTo,
-        subject,
-        snippet,
-        ...body,
-        rawKey,
-        rawSize,
-        storageCounted: !quarantined,
-        spamScore: verdict.score,
-        spamSymbols: verdict.symbols,
-        spamReasons: verdict.reasons,
-        unscanned: verdict.unscanned,
-        authentication: email.authentication ?? null,
-        sentAt,
-      })
-      .onConflictDoNothing()
-      .returning({ id: messages.id });
-    if (!inserted) {
-      // Lost a race with a parallel job. Rolling back undoes the thread changes.
-      throw new DuplicateMessage();
-    }
-    if (stored.length) await tx.insert(attachments).values(stored);
-    if (action.labelId) {
+        authentication: email.authentication,
+        isSpam: folder === "spam",
+      });
       await tx
-        .insert(threadLabels)
-        .values({ threadId: id, labelId: action.labelId })
-        .onConflictDoNothing();
-    }
-    // A new message makes the conversation unread again for everyone.
-    await tx
-      .update(threadUserState)
-      .set({ readAt: null, snoozedUntil: null })
-      .where(eq(threadUserState.threadId, id));
-    if (!quarantined) {
-      await tx
-        .update(workspaces)
-        .set({
-          storageBytesUsed: sql`${workspaces.storageBytesUsed} + ${storedBytes}`,
-        })
-        .where(eq(workspaces.id, workspaceId));
-    }
-    await tx
-      .update(webhookEvents)
-      .set({ processedAt: new Date() })
-      .where(
-        and(
-          eq(webhookEvents.connectionId, connectionId),
-          eq(webhookEvents.emailId, emailId),
-        ),
-      );
-    return id;
-  }).catch((error) => {
-    if (error instanceof DuplicateMessage) return null;
-    throw error;
+        .update(webhookEvents)
+        .set({ processedAt: new Date() })
+        .where(
+          and(
+            eq(webhookEvents.connectionId, connectionId),
+            eq(webhookEvents.emailId, emailId),
+          ),
+        );
+    },
   });
 
   await cleanUp(connectionId, emailId, provider.afterIngest?.bind(provider));
@@ -549,8 +488,6 @@ export async function ingestEmail(connectionId: string, emailId: string) {
   await publishEvent(workspaceId, { type: "thread.updated", threadId });
   return { status: "ingested" as const, threadId, messageId };
 }
-
-class DuplicateMessage extends Error {}
 
 // The email is in our storage now, so the provider's copy can go. Failing here isn't
 // fatal: the bucket expires leftovers and backfill skips mail we already have.

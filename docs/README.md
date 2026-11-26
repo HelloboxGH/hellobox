@@ -17,6 +17,10 @@ address, step by step. You don't need to have run a server before.
 
 Rather not run a server? Use the hosted version at [hellobox.app](https://hellobox.app).
 
+## Use it
+
+- [Support in your app](support.md): turn messages from your app into conversations.
+
 ## Contribute
 
 - [Contributing](../CONTRIBUTING.md): set up the code, and how a change gets in.
