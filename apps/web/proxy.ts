@@ -18,6 +18,7 @@ export async function proxy(request: Request) {
 }
 
 export const config = {
-  // Next caps the bodies of requests that go through here, and support messages carry files.
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|api/support/).*)"],
+  // Next caps the bodies of requests that go through here at 10 MB. Support messages carry
+  // files, and the mail server posts whole emails.
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|api/support/|api/mx/).*)"],
 };

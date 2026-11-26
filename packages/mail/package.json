@@ -36,6 +36,7 @@
     "@noble/hashes": "1.8.0",
     "drizzle-orm": "^0.45.4",
     "ioredis": "^6.0.0",
+    "mailauth": "8.0.6",
     "react": "19.3.0",
     "sanitize-html": "^2.18.1",
     "web-push": "3.6.7"

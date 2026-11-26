@@ -13,7 +13,7 @@ import {
   webhookEvents,
   workspaces,
 } from "@hellobox/db";
-import type { InboundHint, ProviderKind } from "@hellobox/providers";
+import { type InboundEmail, type InboundHint, type ProviderKind, StoredInbound } from "@hellobox/providers";
 import {
   deleteObject,
   messageKey,
@@ -31,6 +31,7 @@ import {
   syncDomains,
 } from "./connections";
 import { receivingDomainIds } from "./domains";
+import { isHelloboxReceived } from "./mx";
 import { shareWithAdmins } from "./mailbox-access";
 import { publishEvent } from "./realtime";
 import { sanitizeEmailHtml } from "./sanitize";
@@ -64,6 +65,20 @@ async function copyToStorage(
 ) {
   await streamToStorage(key, await open(), contentType);
   return objectSize(key);
+}
+
+// Mail from HelloBox's own mail server: the endpoint stored it before answering, and it's
+// removed once ingested.
+function helloboxReceived(workspaceId: string, connectionId: string) {
+  const stored = new StoredInbound(workspaceId, connectionId);
+  return {
+    async fetchInbound(id: string, hint?: InboundHint): Promise<InboundEmail> {
+      const email = await stored.read(id, hint);
+      if (!email) throw new Error(`Received email ${id} isn't in storage`);
+      return email;
+    },
+    afterIngest: (id: string) => stored.remove(id),
+  };
 }
 
 // What the webhook said about the email, for providers whose stored copy lacks it.
@@ -248,12 +263,14 @@ export async function ingestEmail(connectionId: string, emailId: string) {
       ),
     );
   const provider = providerFor(connection);
+  // Mail our own mail server took is in our storage, whichever provider sends for the domain.
+  const source = isHelloboxReceived(emailId) ? helloboxReceived(workspaceId, connectionId) : provider;
   if (existing) {
-    await cleanUp(connectionId, emailId, provider.afterIngest?.bind(provider));
+    await cleanUp(connectionId, emailId, source.afterIngest?.bind(source));
     return { status: "duplicate" as const };
   }
 
-  const email = await provider
+  const email = await source
     .fetchInbound(emailId, await hintFor(connectionId, emailId))
     .catch(async (error) => {
       await markIfRoleRevoked(connectionId, error);
@@ -275,7 +292,7 @@ export async function ingestEmail(connectionId: string, emailId: string) {
       .update(webhookEvents)
       .set({ processedAt: new Date() })
       .where(and(eq(webhookEvents.connectionId, connectionId), eq(webhookEvents.emailId, emailId)));
-    await cleanUp(connectionId, emailId, provider.afterIngest?.bind(provider));
+    await cleanUp(connectionId, emailId, source.afterIngest?.bind(source));
     return { status: "not-receiving" as const };
   }
   const { mailbox, unknownRecipient } = resolved;
@@ -289,7 +306,7 @@ export async function ingestEmail(connectionId: string, emailId: string) {
       .update(webhookEvents)
       .set({ processedAt: new Date() })
       .where(and(eq(webhookEvents.connectionId, connectionId), eq(webhookEvents.emailId, emailId)));
-    await cleanUp(connectionId, emailId, provider.afterIngest?.bind(provider));
+    await cleanUp(connectionId, emailId, source.afterIngest?.bind(source));
     return { status: "dropped" as const };
   }
   // Kept in Spam for a day, uncounted, then deleted unless someone keeps it.
@@ -451,7 +468,7 @@ export async function ingestEmail(connectionId: string, emailId: string) {
     },
   });
 
-  await cleanUp(connectionId, emailId, provider.afterIngest?.bind(provider));
+  await cleanUp(connectionId, emailId, source.afterIngest?.bind(source));
   if (!threadId) return { status: "duplicate" as const };
   if (quarantined) await recordQuarantinedBytes(workspaceId, storedBytes);
   // Bounces are opt-in per workspace. Settings and onboarding explain the risks.

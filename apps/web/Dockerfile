@@ -6,6 +6,7 @@ WORKDIR /app
 FROM base AS deps
 COPY package.json bun.lock ./
 COPY apps/docs/package.json ./apps/docs/
+COPY apps/mx/package.json ./apps/mx/
 COPY apps/web/package.json ./apps/web/
 COPY apps/worker/package.json ./apps/worker/
 COPY packages/config/package.json ./packages/config/

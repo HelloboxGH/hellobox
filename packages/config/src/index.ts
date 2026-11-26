@@ -205,6 +205,8 @@ export const SETTINGS = [
   "SLACK_CLIENT_SECRET",
   "TURNSTILE_SITE_KEY",
   "TURNSTILE_SECRET_KEY",
+  // Shared with the mail server (apps/mx), which signs what it sends us. Used for nothing else.
+  "MX_SIGNING_KEY",
 ] as const;
 export type Setting = (typeof SETTINGS)[number];
 export const setting = defineSettings(SETTINGS);

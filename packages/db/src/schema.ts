@@ -303,6 +303,11 @@ export const domains = pgTable(
     status: text("status"),
     sendingEnabled: boolean("sending_enabled").notNull().default(false),
     receivingEnabled: boolean("receiving_enabled").notNull().default(false),
+    // Mail for the domain comes to HelloBox's own mail server (apps/mx) instead of the
+    // provider's. Turned on only once the TXT record with receiveToken proves DNS control;
+    // sending stays on the provider either way.
+    receiveWithHellobox: boolean("receive_with_hellobox").notNull().default(false),
+    receiveToken: text("receive_token"),
     // Removed in HelloBox. The row stays so its mailboxes and mail do, and so syncing
     // doesn't bring it back. Adding the domain again or restoring it clears this.
     removedAt: time("removed_at"),

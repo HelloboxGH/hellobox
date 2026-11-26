@@ -1,0 +1,35 @@
+# HelloBox's mail server on its own, next to a HelloBox that runs anywhere. It needs no
+# database or Redis: only HELLOBOX_URL and the signing key. Run from this folder with the
+# settings in .env:
+#
+#   MX_HOSTNAME=mx1.example.com          the name your MX records point at
+#   HELLOBOX_URL=https://hellobox.example.com
+#   MX_SIGNING_KEY=...                   the same value as on the HelloBox web app
+#   MX_OPEN=false                        true once you're ready to take mail
+#
+# Port 25 is published straight on the host, so the server sees each sender's real IP
+# (SPF and the per-IP limit need it). Put the TLS certificate in ./certs as key.pem and
+# cert.pem, renewed outside the container; without one, STARTTLS is off.
+name: hellobox-mx
+
+services:
+  mx:
+    build: .
+    image: ${MX_IMAGE:-hellobox-mx}
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "25:2525"
+    volumes:
+      - ./certs:/certs:ro
+    # Strangers talk to this, so it can do no more than it needs.
+    read_only: true
+    tmpfs: [/run/haraka, /tmp]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    cpus: 1
+    mem_limit: 512m
+    pids_limit: 200
+    logging:
+      driver: json-file
+      options: { max-size: 10m, max-file: "3" }

@@ -1,0 +1,3 @@
+# Written to config/plugins at start by entrypoint.sh, with tls first when a certificate is
+# mounted. Order matters. Relaying and outbound are off: nothing here sends mail anywhere.
+hellobox
