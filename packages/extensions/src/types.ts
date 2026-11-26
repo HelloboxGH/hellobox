@@ -108,6 +108,7 @@ export const WORKSPACE_EVENTS = [
   "support.key_created",
   "support.key_revoked",
   "support.webhook_changed",
+  "support.sites_changed",
   "workspace.renamed",
   "workspace.transferred",
   "workspace.exported",

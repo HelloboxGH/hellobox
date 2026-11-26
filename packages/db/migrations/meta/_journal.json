@@ -246,6 +246,13 @@
       "when": 1795697162097,
       "tag": "0034_support_read",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1795698103584,
+      "tag": "0035_support_hosted",
+      "breakpoints": true
     }
   ]
 }

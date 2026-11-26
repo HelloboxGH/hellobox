@@ -74,6 +74,7 @@ export const listSupportInboxes = adminAction("/support/inboxes").handler(async 
         receiving: Boolean(box?.row.domain?.receivingEnabled),
         problem: box ? box.problem : "This mailbox is gone",
         conversations: conversations.find((row) => row.inboxId === inbox.id)?.count ?? 0,
+        sites: inbox.allowedOrigins,
         webhook: inbox.webhookUrl
           ? { url: inbox.webhookUrl, error: inbox.webhookError, pausedUntil: inbox.webhookPausedUntil }
           : null,
@@ -219,7 +220,41 @@ export const rollSupportWebhookSecret = adminAction("/support/webhook/secret")
     return { secret };
   });
 
+const MAX_SITES = 10;
+
+// A site as the browser names it in frame-ancestors: https, or a local address while testing.
+export function siteOrigin(value: string) {
+  let url: URL;
+  try {
+    url = new URL(value.includes("://") ? value : `https://${value}`);
+  } catch {
+    return null;
+  }
+  const local = url.hostname === "localhost" || url.hostname === "127.0.0.1";
+  if (url.protocol !== "https:" && !(local && url.protocol === "http:")) return null;
+  if (url.username || url.password || !url.hostname.includes(".") && !local) return null;
+  return url.origin;
+}
+
+// Only these sites may show the hosted page in a frame. Opening it as a page always works.
+export const setSupportSites = adminAction("/support/sites")
+  .input(z.object({ inboxId: z.string(), sites: z.array(z.string().trim().max(300)).max(MAX_SITES) }))
+  .handler(async ({ input, ctx }) => {
+    assertPerson(ctx);
+    const inbox = await ownInbox(ctx, input.inboxId);
+    const origins: string[] = [];
+    for (const site of input.sites.filter(Boolean)) {
+      const origin = siteOrigin(site);
+      if (!origin) throw badRequest(`${site} isn't a site address. Use one like https://app.example.com`);
+      if (!origins.includes(origin)) origins.push(origin);
+    }
+    await getDb().update(supportInboxes).set({ allowedOrigins: origins }).where(eq(supportInboxes.id, inbox.id));
+    await emit(ctx, "support.sites_changed", inbox.id, { name: inbox.name, sites: origins.join(" ") });
+    return { sites: origins };
+  });
+
 export const supportActions = {
+  "/support/sites": setSupportSites,
   "/support/webhook": setSupportWebhook,
   "/support/webhook/secret": rollSupportWebhookSecret,
   "/support/inboxes": listSupportInboxes,

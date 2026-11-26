@@ -59,7 +59,7 @@ export const READ_LIMIT = 600;
 
 export const retryAfter = (at: number) => ({ "Retry-After": String(Math.max(1, Math.ceil((at - Date.now()) / 1000))) });
 
-async function limit(key: string, max: number, message: string) {
+export async function limit(key: string, max: number, message: string) {
   const { count, resetAt } = await redisRateLimitStore.increment(`support:${key}`, MINUTE_MS);
   if (count > max) throw new SupportError(429, "rate_limited", message, retryAfter(resetAt));
 }

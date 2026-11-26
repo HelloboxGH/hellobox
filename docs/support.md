@@ -130,6 +130,39 @@ Unverified conversations are never readable back. A key can make 600 of these ca
 
 `tools/support-example` is a small app that does all of this, with no dependencies.
 
+## Or show our page
+
+Rather than build the screens, show a HelloBox page in your app. It lists the customer's
+conversations, opens one, writes, attaches files and marks a conversation solved, and checks for
+replies every 15 seconds while it's visible.
+
+Your server asks for a link for whoever is signed in:
+
+```bash
+curl https://hellobox.app/api/support/v1/sessions \
+  -H "Authorization: Bearer $HELLOBOX_SUPPORT_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "user": { "id": "user_42", "email": "ada@example.com", "name": "Ada" } }'
+```
+
+```json
+{ "url": "https://hellobox.app/support/s/…#hst_…", "expiresAt": "…" }
+```
+
+Open it in a frame or a new tab. A link works once, for 5 minutes, and the page it opens stays
+signed in for an hour, in that page only: a reload needs a new link. Revoking the key ends it.
+The page sends messages as that customer, so they're verified, and it never sends `metadata`.
+
+To show it in a frame, add your site under **Sites that can show it** in Settings → Support, such
+as `https://app.example.com`. Without one, no site can frame it. The page loads nothing from
+anywhere else and runs no analytics.
+
+In React, `tools/support-react` wraps it:
+
+```tsx
+<HelloBoxSupport getUrl={() => fetch("/api/support-link", { method: "POST" }).then((r) => r.json()).then((r) => r.url)} />
+```
+
 ## Webhook
 
 Add an address in **Settings → Support** and your server hears about verified conversations:

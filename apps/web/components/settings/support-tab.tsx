@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Menu, MenuItem, MenuPopup, MenuTrigger } from "@/components/ui/menu";
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Textarea } from "@/components/ui/textarea";
 import { call } from "@/core/client/api";
 import { errorMessage } from "@/core/client/notify";
 import { supportCurl, supportNode, supportPrompt } from "@/core/support-setup";
@@ -142,6 +143,34 @@ function Webhook({ inbox, reload }: { inbox: Inbox; reload: () => void }) {
   );
 }
 
+// Sites whose pages may show the hosted support page in a frame.
+function Sites({ inbox, reload }: { inbox: Inbox; reload: () => void }) {
+  const [busy, start] = useRunning();
+  const [sites, setSites] = useState(inbox.sites.join("\n"));
+  const list = sites.split(/[\s,]+/).filter(Boolean);
+  const changed = list.join(" ") !== inbox.sites.join(" ");
+  return (
+    <Form
+      className="space-y-2 border-t pt-4"
+      onSubmit={(event: FormEvent<HTMLFormElement>) => {
+        event.preventDefault();
+        void start(async () => {
+          const result = await call("/support/sites", { inboxId: inbox.id, sites: list });
+          setSites(result.sites.join("\n"));
+          reload();
+        });
+      }}
+    >
+      <Field>
+        <FieldLabel>Sites that can show it</FieldLabel>
+        <Textarea rows={2} placeholder="https://app.example.com" value={sites} onChange={(event) => setSites(event.target.value)} />
+        <FieldDescription>For the support page inside your app. One per line. Other sites can only link to it.</FieldDescription>
+      </Field>
+      <Button type="submit" size="sm" variant="outline" loading={busy} disabled={!changed}>Save sites</Button>
+    </Form>
+  );
+}
+
 function InboxSection({ inbox, reload, onKey, onTab }: {
   inbox: Inbox; reload: () => void; onKey: (key: string) => void; onTab: (tab: string) => void;
 }) {
@@ -203,6 +232,7 @@ function InboxSection({ inbox, reload, onKey, onTab }: {
           </MenuPopup>
         </Menu>
       </div>
+      <Sites key={inbox.sites.join(" ")} inbox={inbox} reload={reload} />
       <Webhook key={inbox.webhook?.url ?? ""} inbox={inbox} reload={reload} />
       <Confirm
         open={confirming}

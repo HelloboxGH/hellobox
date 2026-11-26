@@ -1338,6 +1338,8 @@ export const supportInboxes = pgTable(
     webhookFailures: integer("webhook_failures").notNull().default(0),
     webhookPausedUntil: time("webhook_paused_until"),
     webhookError: text("webhook_error"),
+    // Sites that may show the hosted page in a frame, as origins. Empty: none may.
+    allowedOrigins: jsonb("allowed_origins").$type<string[]>().notNull().default([]),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -1465,5 +1467,39 @@ export const supportWebhookEvents = pgTable(
   (t) => [
     index("support_webhook_events_due_idx").on(t.inboxId, t.nextAttemptAt).where(sql`${t.deliveredAt} is null`),
     index("support_webhook_events_created_idx").on(t.createdAt),
+  ],
+);
+
+// A link to the hosted page, made by the developer's server for one signed-in customer. The
+// link's token works once, within minutes, and becomes a session for an hour that the page
+// keeps in memory. Only hashes are stored.
+export const supportSessions = pgTable(
+  "support_sessions",
+  {
+    id: id(),
+    workspaceId: text("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "cascade" }),
+    inboxId: text("inbox_id")
+      .notNull()
+      .references(() => supportInboxes.id, { onDelete: "cascade" }),
+    // Revoking the key that made it ends the session too.
+    keyId: text("key_id")
+      .notNull()
+      .references(() => supportKeys.id, { onDelete: "cascade" }),
+    externalUserId: text("external_user_id").notNull(),
+    email: text("email").notNull(),
+    name: text("name"),
+    tokenHash: text("token_hash").notNull(),
+    expiresAt: time("expires_at").notNull(),
+    usedAt: time("used_at"),
+    sessionHash: text("session_hash"),
+    sessionExpiresAt: time("session_expires_at"),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    uniqueIndex("support_sessions_token_idx").on(t.tokenHash),
+    uniqueIndex("support_sessions_session_idx").on(t.sessionHash),
+    index("support_sessions_expires_idx").on(t.expiresAt),
   ],
 );

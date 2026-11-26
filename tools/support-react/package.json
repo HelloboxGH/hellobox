@@ -1,0 +1,14 @@
+{
+  "name": "@hellobox/support-react",
+  "version": "0.1.0",
+  "description": "Show a customer their HelloBox support conversations inside your React app.",
+  "license": "MIT",
+  "type": "module",
+  "main": "src/index.tsx",
+  "files": [
+    "src"
+  ],
+  "peerDependencies": {
+    "react": ">=18"
+  }
+}
