@@ -163,6 +163,39 @@ In React, `tools/support-react` wraps it:
 <HelloBoxSupport getUrl={() => fetch("/api/support-link", { method: "POST" }).then((r) => r.json()).then((r) => r.url)} />
 ```
 
+## A public form
+
+For people who aren't signed in to your app, such as visitors to your website, turn on **Public
+form** in Settings → Support. You get a link to a HelloBox form: email, name, message and up to 5
+images. Link to it, or show it in a frame from a site you added under **Sites that can show it**.
+
+Nobody vouches for who sent a form message, so it's unverified: always a new conversation, never
+readable back, and marked "address not confirmed" for your team. The form's key is in the link and
+can be public. All it can do is start a conversation. **New link** replaces it.
+
+Your own form can post to the same address instead, from a site you added:
+
+```js
+await fetch("https://hellobox.app/api/support/form/hbf_…", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ email, name, text, idempotencyKey: crypto.randomUUID() }),
+});
+```
+
+It answers `201` with `{ "received": true }` once the message is stored. Send the files as
+multipart, like the API: the JSON in `message`, then `files`, images only.
+
+What looks like a bot goes to Spam with the reason, so you can still find it:
+
+- a hidden field, `website`, that people leave empty and bots fill in;
+- when this HelloBox uses Cloudflare Turnstile (`TURNSTILE_SITE_KEY` and `TURNSTILE_SECRET_KEY`), a
+  missing or failed check. Your own form would need our Turnstile widget, so on hosted HelloBox use
+  the form page instead.
+
+Each address can send 5 a minute, each form 30 and each workspace 60. Pages from sites you didn't
+add are refused, but a script can claim any site, so this only keeps other pages out.
+
 ## Webhook
 
 Add an address in **Settings → Support** and your server hears about verified conversations:

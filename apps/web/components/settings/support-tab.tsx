@@ -143,6 +143,52 @@ function Webhook({ inbox, reload }: { inbox: Inbox; reload: () => void }) {
   );
 }
 
+// A link anyone can write from. Messages from it are never verified.
+function PublicForm({ inbox, reload }: { inbox: Inbox; reload: () => void }) {
+  const [busy, start] = useRunning();
+  const [replacing, setReplacing] = useState(false);
+  const set = (form: "on" | "new" | "off") =>
+    start(async () => {
+      await call("/support/form", { inboxId: inbox.id, form });
+      reload();
+    });
+  const link = inbox.formKey ? `${window.location.origin}/support/f/${inbox.formKey}` : null;
+  return (
+    <div className="space-y-2 border-t pt-4">
+      <Field>
+        <FieldLabel>Public form</FieldLabel>
+        {link ? (
+          <div className="flex w-full items-center gap-2">
+            <code className="min-w-0 flex-1 overflow-x-auto whitespace-nowrap rounded-lg bg-muted p-2 font-mono text-xs">{link}</code>
+            <CopyButton value={link} />
+          </div>
+        ) : null}
+        <FieldDescription>
+          A contact form anyone can use, for your website or help page. Their address isn&apos;t confirmed, so each message starts its own conversation. What looks like a bot goes to Spam.
+        </FieldDescription>
+      </Field>
+      <div className="flex flex-wrap gap-2">
+        {link ? (
+          <>
+            <Button size="sm" variant="ghost" loading={busy} onClick={() => setReplacing(true)}>New link</Button>
+            <Button size="sm" variant="ghost" loading={busy} onClick={() => void set("off")}>Turn off</Button>
+          </>
+        ) : (
+          <Button size="sm" variant="outline" loading={busy} onClick={() => void set("on")}>Turn on the form</Button>
+        )}
+      </div>
+      <Confirm
+        open={replacing}
+        onOpenChange={setReplacing}
+        title="Make a new link?"
+        body="The current link stops working, wherever you put it."
+        action="New link"
+        onConfirm={() => void set("new")}
+      />
+    </div>
+  );
+}
+
 // Sites whose pages may show the hosted support page in a frame.
 function Sites({ inbox, reload }: { inbox: Inbox; reload: () => void }) {
   const [busy, start] = useRunning();
@@ -164,7 +210,7 @@ function Sites({ inbox, reload }: { inbox: Inbox; reload: () => void }) {
       <Field>
         <FieldLabel>Sites that can show it</FieldLabel>
         <Textarea rows={2} placeholder="https://app.example.com" value={sites} onChange={(event) => setSites(event.target.value)} />
-        <FieldDescription>For the support page inside your app. One per line. Other sites can only link to it.</FieldDescription>
+        <FieldDescription>For the support page or form inside your app or site. One per line. Other sites can only link to them.</FieldDescription>
       </Field>
       <Button type="submit" size="sm" variant="outline" loading={busy} disabled={!changed}>Save sites</Button>
     </Form>
@@ -232,6 +278,7 @@ function InboxSection({ inbox, reload, onKey, onTab }: {
           </MenuPopup>
         </Menu>
       </div>
+      <PublicForm inbox={inbox} reload={reload} />
       <Sites key={inbox.sites.join(" ")} inbox={inbox} reload={reload} />
       <Webhook key={inbox.webhook?.url ?? ""} inbox={inbox} reload={reload} />
       <Confirm

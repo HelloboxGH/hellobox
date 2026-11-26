@@ -129,6 +129,8 @@ export async function postSupportMessage(
   source: SupportSource,
   after: After = defaultAfter,
   upload?: SupportUpload,
+  // Why a public form thinks this is spam. It's kept, in Spam, with these reasons.
+  suspected: string[] = [],
 ): Promise<PostResult> {
   const db = getDb();
   const { inbox, mailbox } = row;
@@ -171,10 +173,14 @@ export async function postSupportMessage(
       .where(and(eq(rules.workspaceId, workspaceId), eq(rules.enabled, true)))
       .orderBy(rules.priority),
   ]);
-  // No raw email to score: only the workspace's own lists decide.
-  const verdict = await classifySpam({ raw: null, policy: senderPolicy(email, senderEntries), attachmentNames: [] });
+  // No raw email to score: only the workspace's own lists decide, and a sender it allowed
+  // is never spam.
+  const policy = senderPolicy(email, senderEntries);
+  const verdict = await classifySpam({ raw: null, policy, attachmentNames: [] });
+  const suspicious = suspected.length > 0 && !policy.allowed;
+  const spamReasons = suspicious ? [...verdict.reasons, ...suspected] : verdict.reasons;
   const action = applyRules(workspaceRules, { fromAddress: email, to: [mailbox.address], subject });
-  const folder = verdict.isSpam ? "spam" : (action.folder ?? "inbox");
+  const folder = verdict.isSpam || suspicious ? "spam" : (action.folder ?? "inbox");
   const messageId = upload?.messageId ?? crypto.randomUUID();
   const conversationId = existing?.id ?? crypto.randomUUID();
   const from = { address: email, ...(name ? { name } : {}) };
@@ -192,7 +198,7 @@ export async function postSupportMessage(
       subject,
       snippet: makeSnippet(message.text),
       textBody: message.text,
-      spamReasons: verdict.reasons,
+      spamReasons,
       sentAt: now,
     },
     mailboxId: mailbox.id,

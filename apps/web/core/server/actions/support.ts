@@ -1,6 +1,6 @@
 import { connections, domains, getDb, mailboxes, supportConversations, supportInboxes, supportKeys, workspaces } from "@hellobox/db";
 import {
-  assertPublicUrl, cleanLine, generateSupportKey, generateWebhookSecret, sealWebhookSecret, setSupportStatus, SUPPORT_STATUSES, supportInboxProblem, UnsafeUrlError,
+  assertPublicUrl, cleanLine, generateFormKey, generateSupportKey, generateWebhookSecret, sealWebhookSecret, setSupportStatus, SUPPORT_STATUSES, supportInboxProblem, UnsafeUrlError,
 } from "@hellobox/mail";
 import { and, count, eq, inArray, isNull } from "drizzle-orm";
 import { badRequest, forbidden, notFound } from "nezt";
@@ -75,6 +75,7 @@ export const listSupportInboxes = adminAction("/support/inboxes").handler(async 
         problem: box ? box.problem : "This mailbox is gone",
         conversations: conversations.find((row) => row.inboxId === inbox.id)?.count ?? 0,
         sites: inbox.allowedOrigins,
+        formKey: inbox.formKey,
         webhook: inbox.webhookUrl
           ? { url: inbox.webhookUrl, error: inbox.webhookError, pausedUntil: inbox.webhookPausedUntil }
           : null,
@@ -253,7 +254,20 @@ export const setSupportSites = adminAction("/support/sites")
     return { sites: origins };
   });
 
+// The public form: on with a new key, a new key in place of the old one, or off.
+export const setSupportForm = adminAction("/support/form")
+  .input(z.object({ inboxId: z.string(), form: z.enum(["on", "new", "off"]) }))
+  .handler(async ({ input, ctx }) => {
+    assertPerson(ctx);
+    const inbox = await ownInbox(ctx, input.inboxId);
+    const formKey = input.form === "off" ? null : input.form === "on" && inbox.formKey ? inbox.formKey : generateFormKey();
+    await getDb().update(supportInboxes).set({ formKey }).where(eq(supportInboxes.id, inbox.id));
+    await emit(ctx, "support.form_changed", inbox.id, { name: inbox.name, form: input.form });
+    return { formKey };
+  });
+
 export const supportActions = {
+  "/support/form": setSupportForm,
   "/support/sites": setSupportSites,
   "/support/webhook": setSupportWebhook,
   "/support/webhook/secret": rollSupportWebhookSecret,

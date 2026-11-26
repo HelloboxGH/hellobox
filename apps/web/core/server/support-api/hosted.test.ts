@@ -11,7 +11,8 @@ void mock.module("@/core/extensions", () => ({ getExtensions }));
 const { postSupportMessage, setSupportWebhookEnqueue } = await import("@hellobox/mail");
 const { hosted } = await import("./hosted");
 const { postSession } = await import("./sessions");
-const { GET: page, policy } = await import("../../../app/support/s/[inboxId]/route");
+const { GET: page } = await import("../../../app/support/s/[inboxId]/route");
+const { policy } = await import("./page");
 const { siteOrigin } = await import("../actions/support");
 
 test("allowed sites are origins, https or local", () => {

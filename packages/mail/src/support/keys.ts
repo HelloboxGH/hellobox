@@ -43,6 +43,25 @@ export async function findSupportInbox(inboxId: string) {
   return row ?? null;
 }
 
+const FORM_PREFIX = "hbf_";
+
+// Public, so it only has to be unguessable enough that nobody stumbles on a form.
+export const generateFormKey = () => `${FORM_PREFIX}${randomBytes(18).toString("base64url")}`;
+
+/** The inbox whose public form this is, or null when there's none or it's off. */
+export async function findSupportForm(key: string) {
+  if (!key.startsWith(FORM_PREFIX) || !/^[A-Za-z0-9_-]{24}$/.test(key.slice(FORM_PREFIX.length))) return null;
+  const [row] = await getDb()
+    .select(inboxRow)
+    .from(supportInboxes)
+    .innerJoin(mailboxes, eq(mailboxes.id, supportInboxes.mailboxId))
+    .leftJoin(domains, eq(domains.id, mailboxes.domainId))
+    .leftJoin(connections, eq(connections.id, domains.connectionId))
+    .innerJoin(workspaces, eq(workspaces.id, supportInboxes.workspaceId))
+    .where(eq(supportInboxes.formKey, key));
+  return row ?? null;
+}
+
 /** The inbox a key belongs to, or null when there's no such key or it was revoked. */
 export async function findSupportKey(key: string) {
   if (!looksLikeSupportKey(key)) return null;

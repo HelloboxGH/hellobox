@@ -1340,12 +1340,16 @@ export const supportInboxes = pgTable(
     webhookError: text("webhook_error"),
     // Sites that may show the hosted page in a frame, as origins. Empty: none may.
     allowedOrigins: jsonb("allowed_origins").$type<string[]>().notNull().default([]),
+    // The public form's key. Public by design: it can only start unverified conversations.
+    // Null: the form is off.
+    formKey: text("form_key"),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
   (t) => [
     index("support_inboxes_workspace_idx").on(t.workspaceId),
     index("support_inboxes_mailbox_idx").on(t.mailboxId),
+    uniqueIndex("support_inboxes_form_key_idx").on(t.formKey),
   ],
 );
 

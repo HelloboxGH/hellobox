@@ -203,6 +203,8 @@ export const SETTINGS = [
   "DISCORD_CLIENT_SECRET",
   "SLACK_CLIENT_ID",
   "SLACK_CLIENT_SECRET",
+  "TURNSTILE_SITE_KEY",
+  "TURNSTILE_SECRET_KEY",
 ] as const;
 export type Setting = (typeof SETTINGS)[number];
 export const setting = defineSettings(SETTINGS);

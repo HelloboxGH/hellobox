@@ -59,12 +59,16 @@ button:disabled { opacity: 0.5; cursor: default; }
 button.link { border: 0; background: none; padding: 4px 6px; color: var(--muted); }
 form.compose { margin-top: 12px; padding: 12px; display: grid; gap: 8px; }
 label { font-size: 12px; font-weight: 500; }
-textarea, input[type="text"] { width: 100%; font: inherit; color: inherit; background: var(--background); border: 1px solid var(--border); border-radius: var(--radius); padding: 8px 10px; }
+textarea, input[type="text"], input[type="email"] { width: 100%; font: inherit; color: inherit; background: var(--background); border: 1px solid var(--border); border-radius: var(--radius); padding: 8px 10px; }
 textarea { min-height: 96px; resize: vertical; }
 .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .row .grow { flex: 1; }
 .error { color: var(--danger); font-size: 13px; margin: 0; }
 .empty { padding: 32px 16px; text-align: center; }
+/* The form's hidden field: off screen, out of the tab order, for bots only. */
+.trap { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
+.two { display: grid; gap: 8px; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); }
+.two > div { display: grid; gap: 8px; }
 @media (prefers-reduced-motion: no-preference) {
   .panel { animation: settle 0.25s cubic-bezier(0.16, 1, 0.3, 1); }
   @keyframes settle { from { opacity: 0; transform: translateY(4px); } }

@@ -15,7 +15,8 @@ export type SupportErrorCode =
   | "too_large"
   | "unsupported_type"
   | "unsafe_file"
-  | "storage_full";
+  | "storage_full"
+  | "forbidden_origin";
 
 export class SupportError extends Error {
   constructor(
