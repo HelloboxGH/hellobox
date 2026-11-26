@@ -16,6 +16,16 @@ function header(email: ReceivedEmail, name: string) {
   return Array.isArray(value) ? value[0] : value;
 }
 
+// Resend sends through Amazon SES, which writes its own Message-ID over ours, and Resend
+// never says what it was. References survives, and mail clients copy it into every reply,
+// so ours goes there too: a reply then names an id we stored.
+export function resendHeaders(headers: Record<string, string> | undefined) {
+  const own = headers?.["Message-ID"];
+  if (!headers || !own) return headers;
+  const references = headers.References?.split(/\s+/).filter(Boolean) ?? [];
+  return references.includes(own) ? headers : { ...headers, References: [...references, own].join(" ") };
+}
+
 export class ResendProvider implements MailProvider {
   readonly kind = "resend" as const;
   // Resend tells us about domain changes through its dashboard flow.
@@ -52,7 +62,7 @@ export class ResendProvider implements MailProvider {
         subject: message.subject,
         // Resend needs a body, but an email with only attachments has none to give.
         ...(message.html.trim() ? { html: message.html } : { text: message.text?.trim() ? message.text : " " }),
-        headers: message.headers,
+        headers: resendHeaders(message.headers),
         attachments: attachments.length ? attachments : undefined,
       },
       idempotencyKey,

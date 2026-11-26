@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { resendDomainRecords, resendRecordName } from "./resend";
+import { resendDomainRecords, resendHeaders, resendRecordName } from "./resend";
 
 describe("resendRecordName", () => {
   test("relative names sit under the domain", () => {
@@ -42,5 +42,17 @@ describe("resendDomainRecords", () => {
 
   test("adds DMARC when the domain has none", () => {
     expect(resendDomainRecords("reply.acme.com", records, { needsDmarc: true }).at(-1)?.name).toBe("_dmarc.reply.acme.com");
+  });
+});
+
+describe("resendHeaders", () => {
+  test("puts our Message-ID in References, which SES leaves alone", () => {
+    expect(resendHeaders({ "Message-ID": "<m2@a.test>" })).toEqual({ "Message-ID": "<m2@a.test>", References: "<m2@a.test>" });
+    expect(resendHeaders({ "Message-ID": "<m2@a.test>", "In-Reply-To": "<m1@b.test>", References: "<m0@a.test> <m1@b.test>" })).toEqual({
+      "Message-ID": "<m2@a.test>", "In-Reply-To": "<m1@b.test>", References: "<m0@a.test> <m1@b.test> <m2@a.test>",
+    });
+    expect(resendHeaders({ "Message-ID": "<m2@a.test>", References: "<m2@a.test>" })).toEqual({ "Message-ID": "<m2@a.test>", References: "<m2@a.test>" });
+    expect(resendHeaders({ "X-Other": "1" })).toEqual({ "X-Other": "1" });
+    expect(resendHeaders(undefined)).toBeUndefined();
   });
 });
