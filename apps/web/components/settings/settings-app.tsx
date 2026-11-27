@@ -466,6 +466,7 @@ function MailboxesTab({ data, refresh }: { data: Bootstrap; refresh: () => void 
       >
         <BounceChoice
           enabled={data.workspace.bouncesEnabled}
+          refusesAtDelivery={data.domains.some((domain) => domain.receiveWithHellobox && !domain.removedAt)}
           disabled={!admin}
           onChange={async (enabled) => {
             if (await run(() => call("/workspace/bounces", { enabled }), enabled ? "Bounces turned on" : "Bounces turned off")) refresh();
@@ -572,7 +573,9 @@ function ConnectionTab({ data, refresh }: { data: Bootstrap; refresh: () => void
                       ? claimed.note
                       : disconnected(domain)
                       ? "Disconnected. Its mail stays here."
-                      : domain.receivingEnabled
+                      : domain.receiveWithHellobox
+                        ? "Receiving with HelloBox"
+                        : domain.receivingEnabled
                         ? "Receiving on"
                         : "Receiving off"}
                   </span>

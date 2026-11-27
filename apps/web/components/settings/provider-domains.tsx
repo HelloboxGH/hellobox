@@ -15,6 +15,7 @@ import { Menu, MenuItem, MenuPopup, MenuTrigger } from "@/components/ui/menu";
 import { Switch } from "@/components/ui/switch";
 import { type Bootstrap, call } from "@/core/client/api";
 import { notify, notifyInfo } from "@/core/client/notify";
+import { HelloboxReceivingDialog } from "./hellobox-receiving";
 import { CopyValue, DnsDialog, type DnsSetup, HOST_NAMES, needsHandAdding, useDnsTarget } from "./dns-records";
 import { useRunning } from "./shared";
 
@@ -49,6 +50,9 @@ export function DomainList({ connection, data, admin, refresh, receiving, setRec
   const [checking, setChecking] = useState<string | null>(null);
   const [subdomainFor, setSubdomainFor] = useState<string | null>(null);
   const [guide, setGuide] = useState<{ parent: string; subdomain: string } | null>(null);
+  const [helloboxFor, setHelloboxFor] = useState<Domain | null>(null);
+  // HelloBox's own mail server, when this HelloBox runs one. Not for the demo.
+  const helloboxMx = Boolean(data.helloboxMx) && connection.provider !== "demo";
   const [addingDomain, runAdd] = useRunning();
   const [, runReceiving] = useRunning();
   const [, runCheck] = useRunning();
@@ -113,7 +117,9 @@ export function DomainList({ connection, data, admin, refresh, receiving, setRec
       <ul className="divide-y rounded-xl border">
         {grouped.map(({ domain, parent }, index) => {
           const verified = domain.status === "verified";
-          const state = receiving(domain);
+          const viaHellobox = domain.receiveWithHellobox;
+          // Receiving with HelloBox replaces the provider's receiving for this domain.
+          const state: Receiving = viaHellobox ? { on: true } : receiving(domain);
           const waitingForMail = state.on && !state.waiting && !domain.hasMail;
           // The subdomain offer closes each group: after a domain and its subdomains, when
           // none of them receives yet.
@@ -130,7 +136,9 @@ export function DomainList({ connection, data, admin, refresh, receiving, setRec
                   </span>
                   {/* One status, the one that says what to do next. */}
                   <span className="mt-1 block">
-                    {!verified
+                    {viaHellobox
+                      ? <Badge variant="success" size="sm">Receiving with HelloBox</Badge>
+                      : !verified
                       ? <Badge variant="warning" size="sm">Waiting for DNS</Badge>
                       : state.waiting
                         ? <Badge variant="warning" size="sm">Waiting for the MX record</Badge>
@@ -164,12 +172,17 @@ export function DomainList({ connection, data, admin, refresh, receiving, setRec
                     </MenuTrigger>
                     <MenuPopup align="end">
                       <MenuItem onClick={() => setDns({ domain: domain.name, setup: null })}>DNS records</MenuItem>
+                      {admin && helloboxMx && (
+                        <MenuItem onClick={() => setHelloboxFor(domain)}>
+                          {viaHellobox ? "Receiving with HelloBox" : "Receive with HelloBox…"}
+                        </MenuItem>
+                      )}
                       {parent && state.on && (
                         <MenuItem onClick={() => setGuide({ parent, subdomain: domain.name })}>Send replies here (Reply-To)</MenuItem>
                       )}
                     </MenuPopup>
                   </Menu>
-                  {admin && setReceiving && (
+                  {admin && setReceiving && !viaHellobox && (
                     <Switch
                       aria-label={`Receive mail for ${domain.name}`}
                       title={state.blocked ?? "Receive mail for this domain"}
@@ -201,6 +214,7 @@ export function DomainList({ connection, data, admin, refresh, receiving, setRec
         onClose={() => setDns(null)}
         onChanged={refresh}
       />
+      <HelloboxReceivingDialog domain={helloboxFor} onClose={() => setHelloboxFor(null)} refresh={refresh} />
       <SubdomainDialog
         connection={connection}
         data={data}

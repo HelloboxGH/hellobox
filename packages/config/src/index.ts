@@ -207,6 +207,8 @@ export const SETTINGS = [
   "TURNSTILE_SECRET_KEY",
   // Shared with the mail server (apps/mx), which signs what it sends us. Used for nothing else.
   "MX_SIGNING_KEY",
+  // The mail server's name, which receiving domains point their MX record at.
+  "MX_HOSTNAME",
 ] as const;
 export type Setting = (typeof SETTINGS)[number];
 export const setting = defineSettings(SETTINGS);

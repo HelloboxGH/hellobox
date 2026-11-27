@@ -29,7 +29,15 @@ const OPTIONS = [
   },
 ] as const;
 
-export function BounceChoice({ enabled, onChange, disabled }: { enabled: boolean; onChange: (enabled: boolean) => void; disabled?: boolean }) {
+// refusesAtDelivery: some domains receive with HelloBox's mail server, which turns down mail
+// for unknown addresses while the sender's server is still delivering it, instead of mailing
+// a bounce afterwards.
+export function BounceChoice({ enabled, onChange, disabled, refusesAtDelivery }: {
+  enabled: boolean;
+  onChange: (enabled: boolean) => void;
+  disabled?: boolean;
+  refusesAtDelivery?: boolean;
+}) {
   return (
     <div className="space-y-3">
       <RadioGroup
@@ -75,6 +83,13 @@ export function BounceChoice({ enabled, onChange, disabled }: { enabled: boolean
           ))}
         </ul>
       </Callout>
+      {refusesAtDelivery && (
+        <p className="text-muted-foreground text-xs leading-relaxed">
+          Domains received with HelloBox work differently: with bounces on, the mail server refuses mail for an address with no mailbox
+          while the sender&apos;s server is still delivering it. The sender&apos;s own server tells them, so nothing is sent from your domain
+          and no credits are used. It still shows which addresses exist, so a sender that keeps naming unknown ones is cut off.
+        </p>
+      )}
     </div>
   );
 }

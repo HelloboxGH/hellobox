@@ -11,6 +11,7 @@ import { notificationActions } from "./actions/notifications";
 import { onboardingActions } from "./actions/onboarding";
 import { platformAdminActions } from "./actions/platform-admin";
 import { postmarkActions } from "./actions/postmark";
+import { receivingActions } from "./actions/receiving";
 import { workspacesActions } from "./actions/workspaces";
 import { composeActions } from "./actions/compose";
 import { health } from "./actions/health";
@@ -33,6 +34,7 @@ export const allActions = {
   ...onboardingActions,
   ...platformAdminActions,
   ...postmarkActions,
+  ...receivingActions,
   ...workspacesActions,
   ...composeActions,
   ...sesActions,

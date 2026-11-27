@@ -167,7 +167,7 @@ async function authenticateMail(raw: Uint8Array, envelope: MxEnvelope): Promise<
       ip: envelope.ip,
       helo: envelope.helo,
       sender: envelope.mailFrom || undefined,
-      mta: "mx1.hellobox.app",
+      mta: setting("MX_HOSTNAME") || "hellobox",
       disableArc: true,
       disableBimi: true,
     });
@@ -235,6 +235,23 @@ export async function receiveFromMx(raw: Uint8Array, envelope: MxEnvelope, deps:
 
 export class ReceivingError extends Error {}
 
+// The mail server's name, or null when this HelloBox has none: then settings doesn't offer
+// receiving with HelloBox at all.
+export function helloboxMxHost() {
+  if (!setting("MX_SIGNING_KEY")) return null;
+  return setting("MX_HOSTNAME")?.trim().toLowerCase().replace(/\.$/, "") || null;
+}
+
+// The MX record a receiving domain points at the mail server. Its only one: any other MX
+// record left in place gets some of the mail.
+export const helloboxMxRecord = (domain: string, host: string) => ({ type: "MX" as const, name: domain, value: host, priority: 10 });
+
+function mxHostOrThrow() {
+  const host = helloboxMxHost();
+  if (!host) throw new ReceivingError("Receiving with HelloBox isn't set up on this server");
+  return host;
+}
+
 async function ownedDomain(workspaceId: string, domainId: string) {
   const [domain] = await getDb()
     .select()
@@ -246,16 +263,18 @@ async function ownedDomain(workspaceId: string, domainId: string) {
 
 // The TXT record to add. The token stays the same until receiving is turned off.
 export async function startHelloboxReceiving(workspaceId: string, domainId: string) {
+  const host = mxHostOrThrow();
   const domain = await ownedDomain(workspaceId, domainId);
   const token = domain.receiveToken ?? randomBytes(18).toString("base64url");
   if (!domain.receiveToken) {
     await getDb().update(domains).set({ receiveToken: token }).where(eq(domains.id, domain.id));
   }
-  return { record: txtRecordFor(domain.name, token), on: domain.receiveWithHellobox };
+  return { record: txtRecordFor(domain.name, token), mx: helloboxMxRecord(domain.name, host), on: domain.receiveWithHellobox };
 }
 
 // Checks the TXT record and turns receiving on. False while the record isn't visible yet.
 export async function confirmHelloboxReceiving(workspaceId: string, domainId: string, proof = hasTxtProof) {
+  mxHostOrThrow();
   const domain = await ownedDomain(workspaceId, domainId);
   if (domain.receiveWithHellobox) return true;
   if (!domain.receiveToken) throw new ReceivingError("Start receiving with HelloBox first");

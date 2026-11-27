@@ -38,6 +38,7 @@ import {
   lockDomainName,
   outgoingTakeovers,
   fitsPlan,
+  helloboxMxHost,
   planDomainCount,
   removeMailbox,
   restoreDomain,
@@ -289,6 +290,8 @@ export const bootstrap = workspaceAction("/app/bootstrap").handler(async ({ ctx 
     providers: { ses: isAwsBrokerConfigured(), cloudflare: isCloudflareConfigured() },
     // DNS hosts the workspace let us write records to.
     dnsHosts: { cloudflare: cloudflare ?? null },
+    // HelloBox's own mail server, when this HelloBox runs one: domains can receive through it.
+    helloboxMx: helloboxMxHost(),
     domains: domainRows,
     // Claims this workspace is making on other workspaces' domains, and claims on its own.
     domainClaims: {

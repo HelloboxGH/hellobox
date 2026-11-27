@@ -2,6 +2,8 @@ import { describe, expect, it } from "bun:test";
 import {
   checkMxSignature,
   helloboxEmailId,
+  helloboxMxHost,
+  helloboxMxRecord,
   isHelloboxReceived,
   mxRecipientDecision,
   type MxDeps,
@@ -137,5 +139,39 @@ describe("mxRecipientDecision", () => {
     expect(await mxRecipientDecision("team@elsewhere.example", open)).toEqual({ accept: false, scope: "domain" });
     expect((await mxRecipientDecision("not-an-address", open)).accept).toBe(false);
     expect((await mxRecipientDecision("a@acme.example@evil.example", open)).accept).toBe(false);
+  });
+});
+
+describe("helloboxMxHost", () => {
+  const saved = { key: process.env.MX_SIGNING_KEY, host: process.env.MX_HOSTNAME };
+  const restore = () => {
+    for (const [name, value] of [["MX_SIGNING_KEY", saved.key], ["MX_HOSTNAME", saved.host]] as const) {
+      if (value === undefined) delete process.env[name];
+      else process.env[name] = value;
+    }
+  };
+
+  it("is the mail server's name only when both settings are there", () => {
+    try {
+      process.env.MX_SIGNING_KEY = "k";
+      process.env.MX_HOSTNAME = " MX1.Example.com. ";
+      expect(helloboxMxHost()).toBe("mx1.example.com");
+      delete process.env.MX_SIGNING_KEY;
+      expect(helloboxMxHost()).toBeNull();
+      process.env.MX_SIGNING_KEY = "k";
+      delete process.env.MX_HOSTNAME;
+      expect(helloboxMxHost()).toBeNull();
+    } finally {
+      restore();
+    }
+  });
+
+  it("gives a domain one MX record pointing at it", () => {
+    expect(helloboxMxRecord("acme.example", "mx1.example.com")).toEqual({
+      type: "MX",
+      name: "acme.example",
+      value: "mx1.example.com",
+      priority: 10,
+    });
   });
 });
