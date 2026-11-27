@@ -245,3 +245,33 @@ describe("CustomProvider", () => {
     ]);
   });
 });
+
+describe("a <NAME> in the host", () => {
+  const context = (secrets: Record<string, string>) => ({ secrets: { API_KEY: "k", ...secrets }, message });
+
+  test("finds the host part of an address template", async () => {
+    const { templateHost } = await import("./spec");
+    expect(templateHost("https://<REGION>.api.acme.com/v1/send?x=1")).toBe("<REGION>.api.acme.com");
+    expect(templateHost("https://user:<PASS>@api.acme.com:8443/send")).toBe("api.acme.com");
+    expect(templateHost("api.acme.com/send")).toBeNull();
+  });
+
+  test("must fill a whole label in the spec", () => {
+    expect(checkSpec(spec({ url: "https://<REGION>.acme.example/send" })).ok).toBe(true);
+    expect(checkSpec(spec({ url: "https://api-<REGION>.acme.example/send" })).ok).toBe(false);
+    expect(checkSpec(spec({ url: "https://{{subject}}.acme.example/send" })).ok).toBe(false);
+  });
+
+  test("can't move the request to another domain", async () => {
+    const send = spec({ url: "https://<REGION>.acme.example/send" }).send;
+    expect((await buildRequest(send, context({ REGION: "eu-1" }))).url).toBe("https://eu-1.acme.example/send");
+    for (const REGION of ["evil.com#", "evil.com/", "a.b", "user@evil.com", ""]) {
+      await expect(buildRequest(send, context({ REGION }))).rejects.toBeInstanceOf(TemplateError);
+    }
+  });
+
+  test("anywhere else, any value is fine", async () => {
+    const send = spec({ url: "https://api.acme.example/<ACCOUNT>/send" }).send;
+    expect((await buildRequest(send, context({ ACCOUNT: "a.b/c" }))).url).toBe("https://api.acme.example/a.b%2Fc/send");
+  });
+});

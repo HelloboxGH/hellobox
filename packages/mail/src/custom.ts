@@ -116,7 +116,8 @@ export async function connectCustom(input: {
 
   const row = {
     status: "active" as const,
-    config: { custom: { spec: checked.spec as Record<string, unknown>, domains: previous?.config.custom?.domains ?? [] } },
+    // The description and logo stay; setCustomAppearance changes them.
+    config: { custom: { ...previous?.config.custom, spec: checked.spec as Record<string, unknown>, domains: previous?.config.custom?.domains ?? [] } },
     accessTokenEnc: encrypt(JSON.stringify(checked.secrets)),
     // Kept on reconnect, so the address pasted into the provider keeps working.
     webhookSecretEnc: previous?.webhookSecretEnc ?? encrypt(randomBytes(32).toString("base64url")),
@@ -156,6 +157,27 @@ async function activeCustom(connectionId: string, workspaceId: string) {
   return connection;
 }
 
+// How it looks on its card. undefined keeps a value, null (or empty) removes it. Returns
+// the logo it replaced, for the caller to delete.
+export async function setCustomAppearance(
+  connectionId: string,
+  workspaceId: string,
+  appearance: { description?: string | null; logo?: string | null },
+) {
+  const connection = await loadConnection(connectionId).catch(() => null);
+  if (!connection || connection.workspaceId !== workspaceId || connection.provider !== "custom" || !connection.config.custom) {
+    throw new Error("Custom provider not found");
+  }
+  const { description: oldDescription, logo: oldLogo, ...custom } = connection.config.custom;
+  const description = appearance.description === undefined ? oldDescription : appearance.description?.trim() || undefined;
+  const logo = appearance.logo === undefined ? oldLogo : appearance.logo || undefined;
+  await getDb()
+    .update(connections)
+    .set({ config: { ...connection.config, custom: { ...custom, ...(description ? { description } : {}), ...(logo ? { logo } : {}) } } })
+    .where(eq(connections.id, connectionId));
+  return { replacedLogo: oldLogo && oldLogo !== logo ? oldLogo : null };
+}
+
 // Domains
 
 // Typed by the customer, as with SMTP, unless the spec lists them. Receiving with HelloBox
@@ -192,6 +214,8 @@ export async function customDetails(connectionId: string, workspaceId: string) {
   }
   return {
     spec: connection.config.custom?.spec ?? null,
+    description: connection.config.custom?.description ?? null,
+    logo: connection.config.custom?.logo ?? null,
     webhookUrl: connection.webhookSecretEnc ? customWebhookUrl(connection.id, decrypt(connection.webhookSecretEnc)) : null,
   };
 }

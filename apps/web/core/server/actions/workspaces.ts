@@ -1,5 +1,4 @@
-import { logoKey, deleteObject, streamToStorage } from "@hellobox/storage";
-import { avatarTypes, MAX_AVATAR_BYTES, safeLogoUrl, sniffAvatarType } from "@/core/avatar";
+import { logoImage, removeStoredLogo, storeLogo } from "../logo-store";
 import { getDb, mailboxes, mailboxMembers, members, threads, workspaces } from "@hellobox/db";
 import { releasePersonalMailboxes, removeNotificationChannels } from "@hellobox/mail";
 import { destroyWorkspace } from "@hellobox/mail";
@@ -80,25 +79,12 @@ export const setBounces = adminAction("/workspace/bounces")
 // The browser crops and scales the image first (core/client/avatar.ts), so it arrives small.
 // A leftover old file costs little and shouldn't fail the change.
 export const setWorkspaceLogo = adminAction("/workspace/logo")
-  .input(z.object({ image: z.base64().max(Math.ceil((MAX_AVATAR_BYTES * 4) / 3) + 4).nullable() }))
+  .input(z.object({ image: logoImage.nullable() }))
   .handler(async ({ input, ctx }) => {
-    let url: string | null = null;
-    if (input.image) {
-      const bytes = new Uint8Array(Buffer.from(input.image, "base64"));
-      const extension = sniffAvatarType(bytes);
-      if (!extension) throw badRequest("Use a PNG, JPEG or WebP image");
-      const file = `${crypto.randomUUID()}.${extension}`;
-      await streamToStorage(logoKey(ctx.workspace.id, file), bytes as never, avatarTypes[extension]);
-      url = `/api/logos/${ctx.workspace.id}/${file}`;
-    }
+    const url = input.image ? await storeLogo(ctx.workspace.id, input.image) : null;
     await getDb().update(workspaces).set({ logo: url }).where(eq(workspaces.id, ctx.workspace.id));
     await emit(ctx, url ? "workspace.logo_changed" : "workspace.logo_removed", ctx.workspace.id);
-    const old = safeLogoUrl(ctx.workspace.logo)?.split("/").at(-1);
-    if (old) {
-      await deleteObject(logoKey(ctx.workspace.id, old)).catch((error: unknown) => {
-        console.error("[logo] Couldn't delete the old file:", error);
-      });
-    }
+    await removeStoredLogo(ctx.workspace.id, ctx.workspace.logo);
     return { url };
   });
 

@@ -1,8 +1,9 @@
 "use client";
 
-import { ArrowSquareOut, CaretRight, ChatCircleDots, Code, EnvelopeSimple, Key } from "@phosphor-icons/react";
+import { ArrowSquareOut, ChatCircleDots, Code, EnvelopeSimple, Key, MagnifyingGlass, SealCheck } from "@phosphor-icons/react";
+import type { ProviderTile } from "@hellobox/extensions";
 import type { ProviderKind } from "@hellobox/providers/types";
-import { type FormEvent, type ReactNode, useState } from "react";
+import { type FormEvent, type ReactNode, useMemo, useState } from "react";
 import { AmazonSesIcon, BirdIcon, BrevoIcon, MailerSendIcon, MailgunIcon, MailjetIcon, PostmarkIcon, ResendIcon, SendGridIcon } from "@/components/brand-icons";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -10,78 +11,186 @@ import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogPanel, Dia
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Form } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
+import { fuzzySearch } from "@/lib/fuzzy-search";
 
 // Whether each provider can be picked here: ready to connect, already connected (Resend
 // allows one), or not built yet, which asks for a vote instead.
 export type ProviderAvailability = Record<ProviderKind, "ready" | "connected" | "soon" | "hidden">;
 
-const CHOICES: { kind: ProviderKind; name: string; detail: string; icon: ReactNode }[] = [
-  { kind: "ses", name: "Amazon SES", detail: "A CloudFormation stack in your AWS account", icon: <AmazonSesIcon className="size-5 rounded-[5px]" /> },
-  { kind: "resend", name: "Resend", detail: "Sign in to Resend and allow access", icon: <ResendIcon className="size-4 text-foreground" /> },
-  { kind: "postmark", name: "Postmark", detail: "Paste an account API token", icon: <PostmarkIcon className="size-5" /> },
-  { kind: "mailgun", name: "Mailgun", detail: "Paste your API key and webhook signing key", icon: <MailgunIcon className="size-5 text-[#F06B66]" /> },
-  { kind: "bird", name: "Bird", detail: "Paste an access key", icon: <BirdIcon className="size-5 rounded-[5px]" /> },
-  { kind: "mailjet", name: "Mailjet", detail: "Paste two keys", icon: <MailjetIcon className="size-5" /> },
-  { kind: "mailersend", name: "MailerSend", detail: "Paste an API token", icon: <MailerSendIcon className="size-5" /> },
-  { kind: "brevo", name: "Brevo", detail: "Paste an API key", icon: <BrevoIcon className="size-5" /> },
-  { kind: "sendgrid", name: "SendGrid", detail: "Paste an API key", icon: <SendGridIcon className="size-5" /> },
-  { kind: "smtp", name: "SMTP", detail: "A server, a username and a password", icon: <EnvelopeSimple className="size-5 text-muted-foreground" /> },
-  { kind: "custom", name: "Custom provider", detail: "Describe any sending API yourself", icon: <Code className="size-5 text-muted-foreground" /> },
+// Aliases are other names people search by. Keywords match weakly.
+const CHOICES: { kind: ProviderKind; name: string; detail: string; icon: ReactNode; aliases?: string[]; keywords?: string[] }[] = [
+  { kind: "ses", name: "Amazon SES", detail: "A CloudFormation stack in your AWS account", icon: <AmazonSesIcon className="size-6 rounded-[5px]" />, aliases: ["AWS", "Simple Email Service", "SES"] },
+  { kind: "resend", name: "Resend", detail: "Sign in to Resend and allow access", icon: <ResendIcon className="size-5 text-foreground" /> },
+  { kind: "postmark", name: "Postmark", detail: "Paste an account API token", icon: <PostmarkIcon className="size-6" />, aliases: ["ActiveCampaign Postmark"] },
+  { kind: "mailgun", name: "Mailgun", detail: "Paste your API key and webhook signing key", icon: <MailgunIcon className="size-6 text-[#F06B66]" />, aliases: ["Sinch Mailgun"] },
+  { kind: "bird", name: "Bird", detail: "Paste an access key", icon: <BirdIcon className="size-6 rounded-[5px]" />, aliases: ["SparkPost", "MessageBird"] },
+  { kind: "mailjet", name: "Mailjet", detail: "Paste two keys", icon: <MailjetIcon className="size-6" /> },
+  { kind: "mailersend", name: "MailerSend", detail: "Paste an API token", icon: <MailerSendIcon className="size-6" />, aliases: ["MailerLite"] },
+  { kind: "brevo", name: "Brevo", detail: "Paste an API key", icon: <BrevoIcon className="size-6" />, aliases: ["Sendinblue"] },
+  { kind: "sendgrid", name: "SendGrid", detail: "Paste an API key", icon: <SendGridIcon className="size-6" />, aliases: ["Twilio SendGrid"] },
+  { kind: "smtp", name: "SMTP", detail: "A server, a username and a password", icon: <EnvelopeSimple className="size-6 text-muted-foreground" />, keywords: ["mail server", "relay", "Google Workspace", "Zoho", "Fastmail"] },
+  { kind: "custom", name: "Custom provider", detail: "Describe any sending API yourself", icon: <Code className="size-6 text-muted-foreground" />, keywords: ["any API", "curl", "webhook", "other"] },
 ];
 
 export const providerIcon = (kind: ProviderKind) => CHOICES.find((choice) => choice.kind === kind)?.icon;
 
-export function ProviderPicker({ open, onOpenChange, availability, onPick, onRequest }: {
+// One square in the grid.
+function Tile({ icon, name, detail, badge, verified, disabled, onClick }: {
+  icon: ReactNode;
+  name: string;
+  detail: string;
+  badge?: ReactNode;
+  verified?: boolean;
+  disabled?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      title={detail}
+      className="relative flex min-w-0 flex-col items-center gap-2 rounded-xl border p-3 pt-4 text-center outline-none transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-60"
+    >
+      <span className="flex size-11 items-center justify-center overflow-hidden rounded-xl bg-muted text-muted-foreground">{icon}</span>
+      <span className="flex w-full items-center justify-center gap-1 font-medium text-foreground text-sm">
+        <span className="truncate">{name}</span>
+        {verified && <SealCheck weight="fill" aria-label="Verified" className="size-4 shrink-0 text-info" />}
+      </span>
+      <span className="line-clamp-2 w-full text-muted-foreground text-xs leading-snug">{detail}</span>
+      {badge && <span className="absolute top-2 right-2">{badge}</span>}
+    </button>
+  );
+}
+
+type Entry = { kind: "native"; choice: (typeof CHOICES)[number] } | { kind: "tile"; tile: ProviderTile };
+
+const entryText = (entry: Entry) =>
+  entry.kind === "native" ? entry.choice : { name: entry.tile.name, aliases: entry.tile.aliases, keywords: [...(entry.tile.keywords ?? []), entry.tile.category?.label ?? ""] };
+
+export function ProviderPicker({ open, onOpenChange, availability, onPick, onRequest, tiles = [] }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   availability: ProviderAvailability;
   onPick: (kind: ProviderKind) => void;
   // Opens the request form, filled in with a provider that isn't built yet.
   onRequest: (provider?: string) => void;
+  // More providers, from the directory. They go after the built-in ones, before SMTP and
+  // Custom provider.
+  tiles?: ProviderTile[];
 }) {
+  const [query, setQuery] = useState("");
+  const [category, setCategory] = useState<string | null>(null);
+  const categories = useMemo(() => {
+    const seen = new Map<string, string>();
+    if (availability.custom !== "hidden") for (const tile of tiles) if (tile.category) seen.set(tile.category.value, tile.category.label);
+    return [...seen].map(([value, label]) => ({ value, label }));
+  }, [tiles, availability.custom]);
+  const shown = useMemo(() => {
+    const natives = CHOICES.filter((choice) => availability[choice.kind] !== "hidden");
+    // Listings are custom providers, so they need what Custom provider needs.
+    const listed = availability.custom === "hidden" ? [] : tiles;
+    const last = (choice: (typeof CHOICES)[number]) => choice.kind === "smtp" || choice.kind === "custom";
+    const entries: Entry[] = category
+      ? listed.filter((tile) => tile.category?.value === category).map((tile): Entry => ({ kind: "tile", tile }))
+      : [
+          ...natives.filter((choice) => !last(choice)).map((choice): Entry => ({ kind: "native", choice })),
+          ...listed.map((tile): Entry => ({ kind: "tile", tile })),
+          ...natives.filter(last).map((choice): Entry => ({ kind: "native", choice })),
+        ];
+    return fuzzySearch(entries, query, entryText);
+  }, [availability, tiles, category, query]);
+  const typed = query.trim();
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogPopup className="sm:max-w-md">
+    <Dialog open={open} onOpenChange={(next) => { onOpenChange(next); if (!next) { setQuery(""); setCategory(null); } }}>
+      <DialogPopup className="sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>Connect a provider</DialogTitle>
-          <DialogDescription>
-            Pick the service you send email with. Your mail keeps going through it; HelloBox reads and answers it.
-          </DialogDescription>
+          <DialogDescription>Pick the service you send email with. Your mail keeps going through it.</DialogDescription>
         </DialogHeader>
-        <DialogPanel className="space-y-1.5 pb-6">
-          {CHOICES.filter((choice) => availability[choice.kind] !== "hidden").map((choice) => {
-            const state = availability[choice.kind];
-            return (
-              <button
-                key={choice.kind}
-                type="button"
-                disabled={state === "connected"}
-                onClick={() => (state === "soon" ? onRequest(choice.name) : onPick(choice.kind))}
-                className="flex w-full items-center gap-3 rounded-xl border p-3 text-left outline-none transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-60"
-              >
-                <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-muted text-muted-foreground">{choice.icon}</span>
-                <span className="min-w-0 flex-1">
-                  <span className="flex items-center gap-2 font-medium text-foreground text-sm">
-                    {choice.name}
-                    {state === "connected" && <Badge variant="success">Connected</Badge>}
-                    {state === "soon" && <Badge variant="outline">Soon</Badge>}
-                  </span>
-                  <span className="block text-muted-foreground text-xs">
-                    {state === "soon" ? "Tell us you use it, and we'll build it sooner" : choice.detail}
-                  </span>
-                </span>
-                {state !== "connected" && <CaretRight className="size-4 text-muted-foreground" />}
-              </button>
-            );
-          })}
-          <button
-            type="button"
-            onClick={() => onRequest()}
-            className="flex w-full items-center gap-3 rounded-xl p-3 text-left text-muted-foreground text-sm outline-none transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
-          >
-            <span className="flex size-9 shrink-0 items-center justify-center"><ChatCircleDots className="size-4" /></span>
-            Using something else? Tell us
-          </button>
+        <DialogPanel className="space-y-3 pb-6">
+          <InputGroup>
+            <InputGroupAddon><MagnifyingGlass /></InputGroupAddon>
+            <InputGroupInput
+              autoFocus
+              type="search"
+              aria-label="Search providers"
+              placeholder="Search providers"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+            />
+          </InputGroup>
+          {categories.length > 0 && (
+            <div className="flex flex-wrap gap-1.5" role="group" aria-label="Category">
+              {[{ value: null, label: "All" }, ...categories].map((item) => (
+                <Button
+                  key={item.value ?? "all"}
+                  size="xs"
+                  variant={category === item.value ? "default" : "outline"}
+                  aria-pressed={category === item.value}
+                  onClick={() => setCategory(item.value)}
+                >
+                  {item.label}
+                </Button>
+              ))}
+            </div>
+          )}
+          {shown.length > 0 ? (
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+              {shown.map((entry) => {
+                if (entry.kind === "tile") {
+                  const { tile } = entry;
+                  return (
+                    <Tile
+                      key={tile.key}
+                      icon={tile.icon}
+                      name={tile.name}
+                      detail={tile.detail}
+                      verified={tile.verified}
+                      badge={tile.featured ? <Badge variant="info">Featured</Badge> : undefined}
+                      onClick={() => {
+                        onOpenChange(false);
+                        tile.onPick();
+                      }}
+                    />
+                  );
+                }
+                const { choice } = entry;
+                const state = availability[choice.kind];
+                return (
+                  <Tile
+                    key={choice.kind}
+                    icon={choice.icon}
+                    name={choice.name}
+                    detail={state === "soon" ? "Tell us you use it, and we'll build it sooner" : choice.detail}
+                    badge={state === "connected" ? <Badge variant="success">Connected</Badge> : state === "soon" ? <Badge variant="outline">Soon</Badge> : undefined}
+                    disabled={state === "connected"}
+                    onClick={() => (state === "soon" ? onRequest(choice.name) : onPick(choice.kind))}
+                  />
+                );
+              })}
+            </div>
+          ) : (
+            <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed px-4 py-8 text-center">
+              <MagnifyingGlass className="size-6 text-muted-foreground" />
+              <p className="text-sm">Nothing called &ldquo;{typed}&rdquo; yet.</p>
+              <div className="flex flex-wrap justify-center gap-2">
+                <Button variant="outline" onClick={() => onRequest(typed)}><ChatCircleDots /> Ask for {typed}</Button>
+                {availability.custom !== "hidden" && <Button variant="outline" onClick={() => onPick("custom")}><Code /> Describe its API</Button>}
+              </div>
+            </div>
+          )}
+          {shown.length > 0 && (
+            <button
+              type="button"
+              onClick={() => onRequest(typed || undefined)}
+              className="flex w-full items-center justify-center gap-2 rounded-xl p-2 text-muted-foreground text-sm outline-none transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <ChatCircleDots className="size-4" /> Using something else? Tell us
+            </button>
+          )}
         </DialogPanel>
       </DialogPopup>
     </Dialog>

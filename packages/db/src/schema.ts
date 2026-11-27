@@ -306,6 +306,9 @@ export interface ConnectionConfig {
   custom?: {
     spec: Record<string, unknown>;
     domains: string[];
+    // Shown on the connection's card. The logo is our own file, /api/logos/{workspaceId}/{file}.
+    description?: string;
+    logo?: string;
   };
 }
 

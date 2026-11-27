@@ -355,3 +355,110 @@ pub struct ProviderRequest {
 pub struct Flushed {
     pub deleted: u64,
 }
+
+/// The provider directory's review queue: versions waiting, then listings with open reports.
+#[derive(Debug, Clone, Deserialize)]
+pub struct DirectoryQueue {
+    pub reviews: Vec<ReviewRow>,
+    pub reports: Vec<ReportGroup>,
+    /// Proven badge records whose listing name doesn't match the domain.
+    #[serde(default)]
+    pub badges: Vec<BadgeRow>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BadgeRow {
+    pub listing_id: String,
+    pub name: String,
+    pub domain: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReviewRow {
+    pub version_id: String,
+    pub name: String,
+    pub number: u64,
+    /// A new version of a live listing, rather than a first submission.
+    pub update: bool,
+    /// The most serious flag: red, amber or info.
+    pub worst: Option<String>,
+    pub workspace: String,
+    pub submitted_at: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReportGroup {
+    pub listing_id: String,
+    pub slug: String,
+    pub name: String,
+    pub open: u64,
+    pub hidden: bool,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct Flag {
+    pub level: String,
+    pub code: String,
+    pub message: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Publisher {
+    pub workspace: String,
+    pub plan: String,
+    pub created_at: Option<String>,
+    pub members: u64,
+    pub domains: u64,
+    pub other_listings: Vec<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct Verification {
+    pub domain: String,
+    pub state: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Report {
+    pub reason: String,
+    pub details: Option<String>,
+    pub email: Option<String>,
+    pub created_at: String,
+}
+
+/// One version of a listing, with everything the reviewer weighs.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReviewDetail {
+    pub version_id: String,
+    pub listing_id: String,
+    pub slug: String,
+    pub number: u64,
+    pub status: String,
+    pub listing_status: String,
+    pub hidden: bool,
+    pub name: String,
+    pub description: String,
+    pub category: String,
+    pub docs_url: Option<String>,
+    pub logo_url: Option<String>,
+    pub page_url: String,
+    pub hosts: Vec<String>,
+    pub approved_hosts: Vec<String>,
+    pub flags: Vec<Flag>,
+    pub reserved_name_allowed: bool,
+    pub diff: String,
+    pub diff_against: Option<u64>,
+    pub note: Option<String>,
+    pub submitted_by: Option<String>,
+    pub submitted_at: String,
+    pub installs: u64,
+    pub publisher: Publisher,
+    pub verification: Option<Verification>,
+    pub reports: Vec<Report>,
+}

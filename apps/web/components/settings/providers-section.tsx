@@ -62,7 +62,10 @@ function guessRegion(): SesRegion {
 const regionName = (id: string | null) => SES_REGIONS.find((region) => region.id === id)?.name ?? id ?? "";
 
 // Short enough for a domain row, and tells apart the same domain on two connections.
-const { ProviderRequestDialog } = clientExtensions;
+const { ProviderRequestDialog, CustomProviderPanel } = clientExtensions;
+// The directory's listings, on a hosted build. Fixed at load, so the hook order never changes.
+const noTiles = () => ({ tiles: [], dialogs: null });
+const useProviderTiles = clientExtensions.useProviderTiles ?? noTiles;
 
 export function connectionLabel(connection: Connection | undefined) {
   if (!connection) return "Unknown provider";
@@ -76,6 +79,7 @@ export function ProvidersSection({ data, refresh, admin }: { data: Bootstrap; re
   const requested = useSearchParam("connect");
   const cloudflare = useSearchParam("cloudflare");
   const [connecting, setConnecting] = useState(requested === "ses" && admin && data.providers.ses);
+  const directory = useProviderTiles({ data, refresh, admin });
   // Postmark connects here, or reconnects the connection named in the link.
   const [postmark, setPostmark] = useState<{ reconnectId?: string } | null>(() => {
     if (requested !== "postmark" || !admin) return null;
@@ -117,7 +121,7 @@ export function ProvidersSection({ data, refresh, admin }: { data: Bootstrap; re
     const broken = data.connections.find((c) => c.provider === "smtp" && c.status === "needs_reconnect");
     return { reconnectId: broken?.id };
   });
-  const [custom, setCustom] = useState<{ reconnectId?: string; spec?: Record<string, unknown> | null } | null>(() => {
+  const [custom, setCustom] = useState<{ reconnectId?: string; spec?: Record<string, unknown> | null; description?: string | null; logo?: string | null } | null>(() => {
     if (requested !== "custom" || !admin) return null;
     const broken = data.connections.find((c) => c.provider === "custom" && c.status === "needs_reconnect");
     return { reconnectId: broken?.id };
@@ -261,7 +265,7 @@ export function ProvidersSection({ data, refresh, admin }: { data: Bootstrap; re
             data={data}
             refresh={refresh}
             admin={admin}
-            onEdit={(spec) => setCustom({ reconnectId: connection.id, spec })}
+            onEdit={(saved) => setCustom({ reconnectId: connection.id, ...saved })}
           />
         ) : connection.provider === "resend" ? (
           <ResendConnection key={connection.id} connection={connection} data={data} refresh={refresh} admin={admin} connectHref={connectHref} />
@@ -278,6 +282,7 @@ export function ProvidersSection({ data, refresh, admin }: { data: Bootstrap; re
         onOpenChange={setPicking}
         availability={availability}
         onPick={pick}
+        tiles={directory.tiles}
         onRequest={(provider) => {
           setPicking(false);
           track("Provider request opened", { from: "connect" });
@@ -286,6 +291,7 @@ export function ProvidersSection({ data, refresh, admin }: { data: Bootstrap; re
           else window.open(ISSUES_URL, "_blank", "noopener");
         }}
       />
+      {directory.dialogs}
       {ProviderRequestDialog && <ProviderRequestDialog
         open={requesting !== null}
         onOpenChange={(open) => !open && setRequesting(null)}
@@ -343,6 +349,7 @@ export function ProvidersSection({ data, refresh, admin }: { data: Bootstrap; re
         open={custom !== null}
         reconnectId={custom?.reconnectId}
         initialSpec={custom?.spec ?? undefined}
+        initialAppearance={custom ? { description: custom.description ?? null, logo: custom.logo ?? null } : undefined}
         onOpenChange={(open) => !open && setCustom(null)}
         refresh={refresh}
       />
@@ -1268,15 +1275,15 @@ function CustomConnection({ connection, data, refresh, admin, onEdit }: {
   data: Bootstrap;
   refresh: () => void;
   admin: boolean;
-  // Opens the editor with the saved spec.
-  onEdit: (spec: Record<string, unknown> | null) => void;
+  // Opens the editor with the saved spec and how it looks.
+  onEdit: (saved: { spec: Record<string, unknown> | null; description: string | null; logo: string | null }) => void;
 }) {
   const run = useRun();
   const name = connection.customName ?? "Custom provider";
   const [webhookUrl, setWebhookUrl] = useState<string | null>(null);
 
   async function edit() {
-    await run(async () => onEdit((await call("/connections/custom/details", { connectionId: connection.id })).spec));
+    await run(async () => onEdit(await call("/connections/custom/details", { connectionId: connection.id })));
   }
 
   async function showWebhook() {
@@ -1285,7 +1292,13 @@ function CustomConnection({ connection, data, refresh, admin, onEdit }: {
 
   return (
     <div className="space-y-3 rounded-2xl border p-3">
-      <ProviderRow icon={<Code className="size-5 text-muted-foreground" />} name={name} detail="Custom provider" status={connection.status}>
+      <ProviderRow
+        // eslint-disable-next-line @next/next/no-img-element -- our own small file
+        icon={connection.customLogo ? <img src={connection.customLogo} alt="" className="size-9 rounded-xl object-cover" /> : <Code className="size-5 text-muted-foreground" />}
+        name={name}
+        detail={connection.customDescription ?? "Custom provider"}
+        status={connection.status}
+      >
         {admin && <Button size="sm" variant={connection.status === "needs_reconnect" ? "default" : "outline"} onClick={edit}>{connection.status === "needs_reconnect" ? "Connect again" : "Edit"}</Button>}
         {admin && (
           <DisconnectButton
@@ -1314,10 +1327,12 @@ function CustomConnection({ connection, data, refresh, admin, onEdit }: {
         </div>
       )}
 
+      {CustomProviderPanel && <CustomProviderPanel data={data} connectionId={connection.id} admin={admin} refresh={refresh} />}
+
       {connection.status === "needs_reconnect" && (
         <Alert variant="warning" className="rounded-xl">
           <Warning />
-          <AlertDescription>The provider stopped accepting your values (it answered 401 or 403). Connect again with the current ones.</AlertDescription>
+          <AlertDescription>Sending through it is paused, usually because the provider stopped accepting your values (it answered 401 or 403). Connect again with the current ones.</AlertDescription>
         </Alert>
       )}
 

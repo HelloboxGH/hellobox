@@ -1,6 +1,6 @@
 "use client";
 
-import { Code, Copy, Key, Lightning, Plus, Sparkle, Trash, Warning } from "@phosphor-icons/react";
+import { Code, Copy, ImageSquare, Key, Lightning, Plus, Sparkle, Trash, Warning } from "@phosphor-icons/react";
 import {
   buildRequest,
   checkSpec,
@@ -27,6 +27,7 @@ import { Tabs, TabsList, TabsPanel, TabsTab } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { call } from "@/core/client/api";
 import { notify } from "@/core/client/notify";
+import { logoToBase64 } from "@/core/client/workspace-logo";
 import { useRun } from "./shared";
 import { ClaudeIcon, CursorIcon, GeminiIcon, OpenAIIcon } from "@/components/brand-icons";
 
@@ -335,17 +336,83 @@ function usePreview(spec: CustomSpec | null) {
   return spec ? preview : "";
 }
 
+// What a custom provider looks like on its card: a logo, a name (the spec's) and a line
+// about it. Private to the workspace unless it's published.
+export interface Appearance {
+  description: string | null;
+  // The saved logo's URL, or a new one as base64 (logoBase64).
+  logo: string | null;
+  logoBase64?: string | null;
+}
+
+export function AppearanceFields({ name, onName, appearance, onChange }: {
+  name: string;
+  onName: (name: string) => void;
+  appearance: Appearance;
+  onChange: (appearance: Appearance) => void;
+}) {
+  const run = useRun();
+  const shown = appearance.logoBase64 ? `data:image/webp;base64,${appearance.logoBase64}` : appearance.logo;
+  return (
+    <div className="flex gap-3 rounded-xl border p-3">
+      <label className="group relative flex size-16 shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-xl border border-dashed bg-muted/50 text-muted-foreground hover:bg-accent">
+        {/* eslint-disable-next-line @next/next/no-img-element -- our own small file, or a data URL */}
+        {shown ? <img src={shown} alt="" className="size-full object-cover" /> : <ImageSquare className="size-6" />}
+        <span className="sr-only">Choose a logo</span>
+        <input
+          type="file"
+          accept="image/png,image/jpeg,image/webp"
+          className="sr-only"
+          onChange={async (event) => {
+            const file = event.target.files?.[0];
+            event.target.value = "";
+            if (file) await run(async () => onChange({ ...appearance, logoBase64: await logoToBase64(file) }));
+          }}
+        />
+      </label>
+      <div className="min-w-0 flex-1 space-y-1.5">
+        <div className="flex items-center gap-1.5">
+          <Input aria-label="Name" value={name} onChange={(event) => onName(event.target.value)} placeholder="Acme Mail" />
+          {shown && (
+            <Button type="button" size="icon-sm" variant="ghost" aria-label="Remove the logo" onClick={() => onChange({ ...appearance, logo: null, logoBase64: null })}>
+              <Trash />
+            </Button>
+          )}
+        </div>
+        <Input
+          aria-label="Description"
+          maxLength={280}
+          value={appearance.description ?? ""}
+          onChange={(event) => onChange({ ...appearance, description: event.target.value })}
+          placeholder="What it is, in a few words"
+        />
+      </div>
+    </div>
+  );
+}
+
+// What changed, in the shape /connections/custom/connect takes. Nothing changed: undefined.
+function appearanceInput(appearance: Appearance, initial?: Appearance) {
+  const description = appearance.description?.trim() || null;
+  const out: { description?: string | null; logo?: string | null } = {};
+  if (description !== (initial?.description ?? null)) out.description = description;
+  if (appearance.logoBase64) out.logo = appearance.logoBase64;
+  else if (!appearance.logo && initial?.logo) out.logo = null;
+  return Object.keys(out).length ? out : undefined;
+}
+
 type TestResult = { ok: boolean; status: number; body: string; id: string | null; idFound: boolean | null; error: string | null };
 
 // Every way into a spec (a curl command, the editor, JSON), then a value for each <NAME>, a
 // test send, and saving. The values are sealed when saved and never shown again; on
 // reconnect, empty ones keep what was saved.
-export function CustomConnectDialog({ open, onOpenChange, reconnectId, initialSpec, refresh, defaultFrom }: {
+export function CustomConnectDialog({ open, onOpenChange, reconnectId, initialSpec, initialAppearance, refresh, defaultFrom }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   reconnectId?: string;
-  // The saved spec, when editing one.
+  // The saved spec and look, when editing one.
   initialSpec?: Record<string, unknown>;
+  initialAppearance?: Appearance;
   refresh: () => void;
   // A sending address to test from, such as the first mailbox.
   defaultFrom?: string;
@@ -364,6 +431,7 @@ export function CustomConnectDialog({ open, onOpenChange, reconnectId, initialSp
   const [testing, setTesting] = useState(false);
   const [test, setTest] = useState<{ result: TestResult; key: string } | null>(null);
   const [busy, setBusy] = useState(false);
+  const [appearance, setAppearance] = useState<Appearance>(initialAppearance ?? { description: null, logo: null });
 
   const check = useMemo(() => (draft ? checkSpec(draft) : null), [draft]);
   const spec = check?.ok ? check.spec : null;
@@ -428,7 +496,7 @@ export function CustomConnectDialog({ open, onOpenChange, reconnectId, initialSp
     event.preventDefault();
     if (!spec || !tested) return;
     setBusy(true);
-    const done = await run(() => call("/connections/custom/connect", { spec, values, connectionId: reconnectId }));
+    const done = await run(() => call("/connections/custom/connect", { spec, values, connectionId: reconnectId, appearance: appearanceInput(appearance, initialAppearance) }));
     setBusy(false);
     if (!done) return;
     notify(reconnectId ? `${spec.name} is connected again` : `${spec.name} is connected. Add the domains you send from.`);
@@ -437,6 +505,7 @@ export function CustomConnectDialog({ open, onOpenChange, reconnectId, initialSp
     setJson("");
     setValues({});
     setTest(null);
+    setAppearance({ description: null, logo: null });
     setTab("ai");
     refresh();
     onOpenChange(false);
@@ -545,6 +614,18 @@ export function CustomConnectDialog({ open, onOpenChange, reconnectId, initialSp
                 </AlertDescription>
               </Alert>
             ))}
+
+            {draft && (
+              <div className="space-y-2">
+                <p className="font-medium text-sm">How it looks</p>
+                <AppearanceFields
+                  name={typeof draft.name === "string" ? draft.name : ""}
+                  onName={(name) => applyDraft({ ...draft, name })}
+                  appearance={appearance}
+                  onChange={setAppearance}
+                />
+              </div>
+            )}
 
             {check?.ok && check.secrets.length > 0 && (
               <div className="space-y-3">

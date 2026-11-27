@@ -306,6 +306,9 @@ export const bootstrap = workspaceAction("/app/bootstrap").handler(async ({ ctx 
       // Custom provider: the name its spec gives. The spec itself is read by admins only,
       // when they edit it.
       customName: typeof config.custom?.spec.name === "string" ? config.custom.spec.name : null,
+      // Its description and logo, when the workspace gave them.
+      customDescription: config.custom?.description ?? null,
+      customLogo: safeLogoUrl(config.custom?.logo),
       // Whether its spec reads delivery events.
       customEvents: config.custom ? Boolean(config.custom.spec.events) : null,
     })),

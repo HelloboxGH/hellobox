@@ -1,5 +1,5 @@
-import type { CustomRequestSpec } from "./spec";
-import { renderTemplate, type RenderContext, type TemplateAttachment } from "./template";
+import { type CustomRequestSpec, HOST_LABEL, templateHost } from "./spec";
+import { renderTemplate, TemplateError, type RenderContext, type TemplateAttachment } from "./template";
 
 // Turns a request template into the bytes to send. Sending them is the caller's: it goes
 // through the safe fetch, which checks where it goes.
@@ -37,7 +37,20 @@ const toBase64 = (bytes: Uint8Array) => {
 
 const fieldText = (value: unknown) => (typeof value === "string" ? value : JSON.stringify(value));
 
+// Each <NAME> in the address's host must be one DNS label, so the spec alone decides which
+// domain a request goes to.
+function checkHostValues(url: string, secrets: Record<string, string>) {
+  for (const match of (templateHost(url) ?? "").matchAll(/<([A-Z][A-Z0-9_]*)>/g)) {
+    const value = secrets[match[1]!];
+    // The editor's preview fills each <NAME> with itself.
+    if (value !== undefined && value !== match[0] && !HOST_LABEL.test(value)) {
+      throw new TemplateError(`<${match[1]}> goes in the address's host, so it can only have letters, digits and dashes`);
+    }
+  }
+}
+
 export async function buildRequest(spec: CustomRequestSpec, context: RenderContext): Promise<CustomRequest> {
+  checkHostValues(spec.url, context.secrets);
   const url = renderTemplate(spec.url, { ...context, encode: encodeURIComponent });
   if (typeof url !== "string") throw new Error("The address came out empty");
   const headers = (renderTemplate(spec.headers, context) ?? {}) as Record<string, unknown>;

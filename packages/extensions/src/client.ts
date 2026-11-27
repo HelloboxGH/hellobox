@@ -12,6 +12,22 @@ export interface SignInMethodProps {
   fail(message: string | null, focusEmail?: boolean): void; // show or clear the form's error
 }
 
+// A provider the Connect a provider grid shows beside the built-in ones (the directory's
+// listings), found by the same search.
+export interface ProviderTile {
+  key: string;
+  name: string;
+  detail: string;
+  icon: ReactNode;
+  aliases?: string[];
+  keywords?: string[];
+  // Shown as a group of chips above the grid, when there are any.
+  category?: { value: string; label: string };
+  verified?: boolean;
+  featured?: boolean;
+  onPick(): void;
+}
+
 // What the client entry (`@ext/client`) holds. Only components, so it never pulls in
 // server code. `Bootstrap` is supplied by apps/web.
 export interface ClientExtensions<Bootstrap> {
@@ -44,6 +60,11 @@ export interface ClientExtensions<Bootstrap> {
   // The feedback form (Settings → Feedback and the account menu's dialog). Without it the app
   // links to the project's public issue tracker instead.
   FeedbackPanel?: ComponentType<{ className?: string; onSent?(): void }>;
+  // More providers for the Connect a provider grid, and the dialogs they open (rendered
+  // beside the grid, which closes on a pick). A hook, called on every render of the section.
+  useProviderTiles?(props: { data: Bootstrap; refresh(): void; admin: boolean }): { tiles: ProviderTile[]; dialogs: ReactNode };
+  // Under a custom provider's card: publishing it to the provider directory.
+  CustomProviderPanel?: ComponentType<{ data: Bootstrap; connectionId: string; admin: boolean; refresh(): void }>;
   // "Using something else? Tell us": the dialog that collects which provider to add next.
   // Without it the picker links to the issue tracker.
   ProviderRequestDialog?: ComponentType<{

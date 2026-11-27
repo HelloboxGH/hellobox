@@ -152,6 +152,19 @@ export function messagePlaceholders(value: unknown): Placeholder[] {
   return found;
 }
 
+// The host part of a URL template, as written: "<REGION>.api.acme.com" for
+// "https://<REGION>.api.acme.com/v1/send". Null when it doesn't start with a scheme.
+export function templateHost(url: string): string | null {
+  const match = url.match(/^[a-z][a-z0-9+.-]*:\/\/([^/?#]*)/i);
+  if (!match) return null;
+  // Without user info or port.
+  return match[1]!.replace(/^.*@/, "").replace(/:[^:\]]*$/, "");
+}
+
+// A <NAME> in a host must fill whole DNS labels, so its value can't move the request to
+// another domain ("evil.com#" in https://<REGION>.acme.com).
+export const HOST_LABEL = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/i;
+
 export type SpecCheck = { ok: true; spec: CustomSpec; secrets: string[] } | { ok: false; problems: string[] };
 
 // Checks a spec as typed or pasted: its shape, then that every placeholder names a
@@ -175,6 +188,17 @@ export function checkSpec(input: unknown): SpecCheck {
   const problems: string[] = [];
   for (const { field } of messagePlaceholders(parsed.data.send)) {
     if (!(MESSAGE_FIELDS as readonly string[]).includes(field)) problems.push(`{{${field}}} isn't a message field. Use one of ${MESSAGE_FIELDS.join(", ")}.`);
+  }
+  for (const request of [parsed.data.send, parsed.data.domains]) {
+    if (!request) continue;
+    const host = templateHost(request.url);
+    if (host === null) continue;
+    if (/\{\{/.test(host)) problems.push(`${request.url}: the address's host can't use a message field`);
+    for (const label of host.split(".")) {
+      if (/<[A-Z][A-Z0-9_]*>/.test(label) && !/^<[A-Z][A-Z0-9_]*>$/.test(label)) {
+        problems.push(`${request.url}: a <NAME> in the host has to be a whole part between dots, like https://<REGION>.api.example.com`);
+      }
+    }
   }
   for (const part of [parsed.data.domains, parsed.data.events]) {
     for (const { field } of messagePlaceholders(part ?? null)) problems.push(`{{${field}}} only works in the send request`);

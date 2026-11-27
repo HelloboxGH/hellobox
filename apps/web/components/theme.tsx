@@ -29,9 +29,9 @@ export type Accent = (typeof ACCENTS)[number]["value"];
 const DEFAULT_THEME = "light";
 const DEFAULT_ACCENT: Accent = "blue";
 
-// The landing pages (home, pricing, partners, guides), the legal pages and the sign-in pages
+// The landing pages (home, pricing, partners, guides, providers), the legal pages and the sign-in pages
 // always show the brand look, whatever the visitor picked inside the app. A new landing page goes here.
-const BRAND_PAGES = "^/(login|signup|forgot-password|reset-password|admin|pricing|partners|guides|demo|privacy|terms)?(/|$)";
+const BRAND_PAGES = "^/(login|signup|forgot-password|reset-password|admin|pricing|partners|guides|providers|demo|privacy|terms)?(/|$)";
 const isBrandPage = (path: string) => new RegExp(BRAND_PAGES).test(path);
 
 export const themeScript = `(function(){var r=document.documentElement,b=new RegExp(${JSON.stringify(BRAND_PAGES)}).test(location.pathname),t="${DEFAULT_THEME}",a="${DEFAULT_ACCENT}";if(!b){try{t=localStorage.getItem("${KEY}")||t;a=localStorage.getItem("${ACCENT_KEY}")||a}catch(e){}}r.classList.toggle("dark",t==="dark"||(t==="system"&&matchMedia("(prefers-color-scheme: dark)").matches));if(a!=="periwinkle")r.dataset.accent=a})()`;

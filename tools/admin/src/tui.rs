@@ -14,8 +14,8 @@ use serde_json::json;
 
 use crate::{
     api::{
-        Activity, Api, Done, Empty, Stats, UserDetail, UserPage, UserRow, WorkspaceDetail,
-        WorkspacePage, WorkspaceRow, is_unauthorized,
+        Activity, Api, DirectoryQueue, Done, Empty, ReviewDetail, Stats, UserDetail, UserPage,
+        UserRow, WorkspaceDetail, WorkspacePage, WorkspaceRow, is_unauthorized,
     },
     format::{ago, bytes, date, date_time, money, number, percent, ratio},
 };
@@ -38,13 +38,26 @@ enum Tab {
     Users,
     Workspaces,
     Activity,
+    Directory,
 }
 
-const TABS: [Tab; 4] = [Tab::Overview, Tab::Users, Tab::Workspaces, Tab::Activity];
+const TABS: [Tab; 5] = [
+    Tab::Overview,
+    Tab::Users,
+    Tab::Workspaces,
+    Tab::Activity,
+    Tab::Directory,
+];
 
 impl Tab {
-    fn index(self) -> usize {
-        TABS.iter().position(|tab| *tab == self).unwrap_or(0)
+    fn title(self) -> &'static str {
+        match self {
+            Tab::Overview => "Overview",
+            Tab::Users => "Users",
+            Tab::Workspaces => "Workspaces",
+            Tab::Activity => "Activity",
+            Tab::Directory => "Directory",
+        }
     }
 }
 
@@ -115,6 +128,14 @@ enum Pending {
     SignOut { id: String, label: String },
     Suspend { id: String, label: String },
     Unsuspend { id: String, label: String },
+    // The provider directory.
+    Approve { id: String, label: String },
+    Reject { id: String, label: String },
+    Changes { id: String, label: String },
+    TakeDown { id: String, label: String },
+    AllowName { id: String, label: String },
+    DismissReports { id: String, label: String },
+    AllowBadgeName { id: String, label: String },
 }
 
 impl Pending {
@@ -125,6 +146,13 @@ impl Pending {
             Pending::SignOut { label, .. } => format!("Sign out {label} everywhere"),
             Pending::Suspend { label, .. } => format!("Suspend {label}"),
             Pending::Unsuspend { label, .. } => format!("Lift the suspension on {label}"),
+            Pending::Approve { label, .. } => format!("Approve {label}"),
+            Pending::Reject { label, .. } => format!("Reject {label}"),
+            Pending::Changes { label, .. } => format!("Ask for changes to {label}"),
+            Pending::TakeDown { label, .. } => format!("Take down {label}"),
+            Pending::AllowName { label, .. } => format!("Allow the name {label}"),
+            Pending::DismissReports { label, .. } => format!("Dismiss the reports on {label}"),
+            Pending::AllowBadgeName { label, .. } => format!("Give {label} the Verified badge"),
         }
     }
 
@@ -143,11 +171,38 @@ impl Pending {
                 "Nobody can open the workspace, and queued mail and campaigns stop sending."
             }
             Pending::Unsuspend { .. } => "Members can open the workspace and send again.",
+            Pending::Approve { .. } => {
+                "It goes live in the directory. For an update, the workspaces using it are told it's ready."
+            }
+            Pending::Reject { .. } => {
+                "It isn't listed. The publisher is emailed the reason; a live version stays live."
+            }
+            Pending::Changes { .. } => {
+                "The publisher is emailed what to change, and can send it again."
+            }
+            Pending::TakeDown { .. } => {
+                "Off the directory now. Every connection made from it stops, and their admins are told to revoke their keys."
+            }
+            Pending::AllowName { .. } => {
+                "This listing may use a name that's reserved or close to one. Only for the real company."
+            }
+            Pending::DismissReports { .. } => {
+                "The open reports are closed, and the listing shows in the directory again."
+            }
+            Pending::AllowBadgeName { .. } => {
+                "Its DNS record is proven but the name doesn't match the domain. Only when the name is theirs."
+            }
         }
     }
 
     fn needs_reason(&self) -> bool {
-        matches!(self, Pending::Ban { .. } | Pending::Suspend { .. })
+        !matches!(
+            self,
+            Pending::Unban { .. }
+                | Pending::SignOut { .. }
+                | Pending::Unsuspend { .. }
+                | Pending::Approve { .. }
+        )
     }
 
     fn run(&self, api: &Api, reason: &str) -> Result<Done> {
@@ -164,6 +219,34 @@ impl Pending {
             Pending::Unsuspend { id, .. } => {
                 api.call("/admin/workspaces/unsuspend", &json!({ "id": id }))
             }
+            Pending::Approve { id, .. } => api.call(
+                "/admin/directory/decide",
+                &json!({ "versionId": id, "decision": "approve" }),
+            ),
+            Pending::Reject { id, .. } => api.call(
+                "/admin/directory/decide",
+                &json!({ "versionId": id, "decision": "reject", "reason": reason }),
+            ),
+            Pending::Changes { id, .. } => api.call(
+                "/admin/directory/decide",
+                &json!({ "versionId": id, "decision": "changes", "reason": reason }),
+            ),
+            Pending::TakeDown { id, .. } => api.call(
+                "/admin/directory/takedown",
+                &json!({ "listingId": id, "reason": reason }),
+            ),
+            Pending::AllowName { id, .. } => api.call(
+                "/admin/directory/allow-name",
+                &json!({ "listingId": id, "reason": reason }),
+            ),
+            Pending::DismissReports { id, .. } => api.call(
+                "/admin/directory/dismiss-reports",
+                &json!({ "listingId": id, "reason": reason }),
+            ),
+            Pending::AllowBadgeName { id, .. } => api.call(
+                "/admin/directory/allow-badge-name",
+                &json!({ "listingId": id, "reason": reason }),
+            ),
         }
     }
 
@@ -174,6 +257,13 @@ impl Pending {
             Pending::SignOut { label, .. } => format!("Signed {label} out everywhere"),
             Pending::Suspend { label, .. } => format!("Suspended {label}"),
             Pending::Unsuspend { label, .. } => format!("Lifted the suspension on {label}"),
+            Pending::Approve { label, .. } => format!("Approved {label}"),
+            Pending::Reject { label, .. } => format!("Rejected {label}"),
+            Pending::Changes { label, .. } => format!("Asked for changes to {label}"),
+            Pending::TakeDown { label, .. } => format!("Took down {label}"),
+            Pending::AllowName { label, .. } => format!("Allowed the name {label}"),
+            Pending::DismissReports { label, .. } => format!("Dismissed the reports on {label}"),
+            Pending::AllowBadgeName { label, .. } => format!("Gave {label} the Verified badge"),
         }
     }
 }
@@ -182,6 +272,8 @@ impl Pending {
 enum Detail {
     User(Box<UserDetail>),
     Workspace(Box<WorkspaceDetail>),
+    /// A listing's version, and how far it's scrolled.
+    Review(Box<ReviewDetail>, u16),
 }
 
 enum Mode {
@@ -220,11 +312,18 @@ struct App {
     activity: Vec<Activity>,
     activity_table: TableState,
     activity_loaded: bool,
+    directory: Option<DirectoryQueue>,
+    directory_table: TableState,
     quit: bool,
     session_ended: bool,
 }
 
-pub fn run(api: Api, email: String, expires_at: String, sections: Option<Vec<String>>) -> Result<Outcome> {
+pub fn run(
+    api: Api,
+    email: String,
+    expires_at: String,
+    sections: Option<Vec<String>>,
+) -> Result<Outcome> {
     let mut terminal = ratatui::init();
     let mut app = App::new(api, email, expires_at, sections);
     let result = app.run(&mut terminal);
@@ -248,6 +347,8 @@ impl App {
             activity: vec![],
             activity_table: TableState::default(),
             activity_loaded: false,
+            directory: None,
+            directory_table: TableState::default(),
             quit: false,
             session_ended: false,
         }
@@ -257,6 +358,28 @@ impl App {
         self.sections
             .as_ref()
             .is_none_or(|sections| sections.iter().any(|s| s == section))
+    }
+
+    /// The tabs this server has: Directory only where it runs one.
+    fn tabs(&self) -> Vec<Tab> {
+        TABS.into_iter()
+            .filter(|tab| *tab != Tab::Directory || self.has("provider-directory"))
+            .collect()
+    }
+
+    fn tab_index(&self) -> usize {
+        self.tabs()
+            .iter()
+            .position(|tab| *tab == self.tab)
+            .unwrap_or(0)
+    }
+
+    /// The queue's rows: versions to review, listings with open reports, then badges
+    /// waiting on their name.
+    fn directory_rows(&self) -> usize {
+        self.directory.as_ref().map_or(0, |queue| {
+            queue.reviews.len() + queue.reports.len() + queue.badges.len()
+        })
     }
 
     fn workspace_filters(&self) -> &'static [&'static str] {
@@ -341,6 +464,20 @@ impl App {
                         .fill(page.workspaces, page.matching, page.page_size);
                 }
             }
+            Tab::Directory => {
+                if let Some(queue) = self.busy(terminal, "Loading the directory queue", |api| {
+                    api.call::<DirectoryQueue>("/admin/directory/queue", &Empty {})
+                }) {
+                    self.directory = Some(queue);
+                    let rows = self.directory_rows();
+                    let keep = self.directory_table.selected().unwrap_or(0);
+                    self.directory_table.select(if rows == 0 {
+                        None
+                    } else {
+                        Some(keep.min(rows - 1))
+                    });
+                }
+            }
             Tab::Activity => {
                 if let Some(rows) = self.busy(terminal, "Loading activity", |api| {
                     api.call::<Vec<Activity>>("/admin/activity", &Empty {})
@@ -365,6 +502,7 @@ impl App {
             Tab::Users => self.users.loaded,
             Tab::Workspaces => self.workspaces.loaded,
             Tab::Activity => self.activity_loaded,
+            Tab::Directory => self.directory.is_some(),
         };
         if !loaded {
             self.load(terminal);
@@ -385,11 +523,45 @@ impl App {
                 };
                 self.fetch_workspace(terminal, &id)
             }
+            Tab::Directory => {
+                let Some(target) = self.selected_directory_target() else {
+                    return;
+                };
+                self.fetch_review(terminal, target)
+            }
             _ => None,
         };
         if let Some(detail) = detail {
             self.mode = Mode::Detail(detail);
         }
+    }
+
+    /// The selected queue row: a version to review, a reported listing, or a badge.
+    fn selected_directory_target(&self) -> Option<serde_json::Value> {
+        let queue = self.directory.as_ref()?;
+        let index = self.directory_table.selected()?;
+        if let Some(row) = queue.reviews.get(index) {
+            return Some(json!({ "versionId": row.version_id }));
+        }
+        let index = index - queue.reviews.len();
+        if let Some(row) = queue.reports.get(index) {
+            return Some(json!({ "listingId": row.listing_id }));
+        }
+        queue
+            .badges
+            .get(index - queue.reports.len())
+            .map(|row| json!({ "listingId": row.listing_id }))
+    }
+
+    fn fetch_review(
+        &mut self,
+        terminal: &mut DefaultTerminal,
+        target: serde_json::Value,
+    ) -> Option<Detail> {
+        self.busy(terminal, "Loading the listing", |api| {
+            api.call::<ReviewDetail>("/admin/directory/version", &target)
+        })
+        .map(|detail| Detail::Review(Box::new(detail), 0))
     }
 
     fn fetch_user(&mut self, terminal: &mut DefaultTerminal, id: &str) -> Option<Detail> {
@@ -408,6 +580,9 @@ impl App {
 
     // What b, u, o and s act on: the open detail, or the selected row.
     fn pending_for(&self, key: char, detail: Option<&Detail>) -> Option<Pending> {
+        if let Some(Detail::Review(review, _)) = detail {
+            return review_pending(key, review);
+        }
         let user = match detail {
             Some(Detail::User(user)) => Some((
                 user.id.clone(),
@@ -482,11 +657,15 @@ impl App {
         }
         self.stats = None;
         self.activity_loaded = false;
+        self.directory = None;
         self.load(terminal);
         if let Some(back) = back {
             let refreshed = match back {
                 Detail::User(user) => self.fetch_user(terminal, &user.id),
                 Detail::Workspace(workspace) => self.fetch_workspace(terminal, &workspace.id),
+                Detail::Review(review, _) => {
+                    self.fetch_review(terminal, json!({ "versionId": review.version_id }))
+                }
             };
             if let Some(detail) = refreshed {
                 self.mode = Mode::Detail(detail);
@@ -531,6 +710,45 @@ impl App {
                     self.mode = Mode::Search(query);
                 }
                 _ => self.mode = Mode::Search(query),
+            },
+            Mode::Detail(Detail::Review(review, scroll)) => match key.code {
+                KeyCode::Esc | KeyCode::Char('q') => {}
+                KeyCode::Down | KeyCode::Char('j') => {
+                    self.mode = Mode::Detail(Detail::Review(review, scroll.saturating_add(1)))
+                }
+                KeyCode::Up | KeyCode::Char('k') => {
+                    self.mode = Mode::Detail(Detail::Review(review, scroll.saturating_sub(1)))
+                }
+                KeyCode::PageDown | KeyCode::Char(' ') => {
+                    self.mode = Mode::Detail(Detail::Review(review, scroll.saturating_add(15)))
+                }
+                KeyCode::PageUp => {
+                    self.mode = Mode::Detail(Detail::Review(review, scroll.saturating_sub(15)))
+                }
+                KeyCode::Char(ch @ ('o' | 'l' | 'w')) => {
+                    let url = match ch {
+                        'o' => Some(review.page_url.clone()),
+                        'l' => review.logo_url.clone(),
+                        _ => review.docs_url.clone(),
+                    };
+                    if let Some(url) = url
+                        && open::that(&url).is_err()
+                    {
+                        self.status = Some(Status {
+                            text: format!("Couldn't open {url}"),
+                            error: true,
+                        });
+                    }
+                    self.mode = Mode::Detail(Detail::Review(review, scroll));
+                }
+                KeyCode::Char(ch) => {
+                    let detail = Detail::Review(review, scroll);
+                    match self.pending_for(ch, Some(&detail)) {
+                        Some(pending) => self.start(pending, Some(detail)),
+                        None => self.mode = Mode::Detail(detail),
+                    }
+                }
+                _ => self.mode = Mode::Detail(Detail::Review(review, scroll)),
             },
             Mode::Detail(detail) => match key.code {
                 KeyCode::Esc | KeyCode::Char('q') | KeyCode::Enter => {}
@@ -591,14 +809,22 @@ impl App {
         match key.code {
             KeyCode::Char('q') => self.quit = true,
             KeyCode::Char('?') => self.mode = Mode::Help,
-            KeyCode::Char(ch @ '1'..='4') => {
-                self.switch(TABS[(ch as usize) - ('1' as usize)], terminal)
+            KeyCode::Char(ch @ '1'..='9') => {
+                if let Some(tab) = self.tabs().get((ch as usize) - ('1' as usize)) {
+                    self.switch(*tab, terminal)
+                }
             }
-            KeyCode::Tab => self.switch(TABS[(self.tab.index() + 1) % TABS.len()], terminal),
-            KeyCode::BackTab => self.switch(
-                TABS[(self.tab.index() + TABS.len() - 1) % TABS.len()],
-                terminal,
-            ),
+            KeyCode::Tab => {
+                let tabs = self.tabs();
+                self.switch(tabs[(self.tab_index() + 1) % tabs.len()], terminal)
+            }
+            KeyCode::BackTab => {
+                let tabs = self.tabs();
+                self.switch(
+                    tabs[(self.tab_index() + tabs.len() - 1) % tabs.len()],
+                    terminal,
+                )
+            }
             KeyCode::Char('r') => self.load(terminal),
             KeyCode::Down | KeyCode::Char('j') => self.step(1),
             KeyCode::Up | KeyCode::Char('k') => self.step(-1),
@@ -643,6 +869,11 @@ impl App {
         match self.tab {
             Tab::Users => self.users.step(by),
             Tab::Workspaces => self.workspaces.step(by),
+            Tab::Directory if self.directory_rows() > 0 => {
+                let current = self.directory_table.selected().unwrap_or(0) as isize;
+                let next = (current + by).clamp(0, self.directory_rows() as isize - 1);
+                self.directory_table.select(Some(next as usize));
+            }
             Tab::Activity if !self.activity.is_empty() => {
                 let current = self.activity_table.selected().unwrap_or(0) as isize;
                 let next = (current + by).clamp(0, self.activity.len() as isize - 1);
@@ -684,11 +915,13 @@ impl App {
             Tab::Users => self.draw_users(frame, body),
             Tab::Workspaces => self.draw_workspaces(frame, body),
             Tab::Activity => self.draw_activity(frame, body),
+            Tab::Directory => self.draw_directory(frame, body),
         }
         self.draw_footer(frame, footer);
         match &self.mode {
             Mode::Detail(Detail::User(user)) => draw_user_detail(frame, user),
             Mode::Detail(Detail::Workspace(workspace)) => draw_workspace_detail(frame, workspace),
+            Mode::Detail(Detail::Review(review, scroll)) => draw_review(frame, review, *scroll),
             Mode::Reason { pending, input, .. } => draw_reason(frame, pending, input),
             Mode::Confirm { pending, .. } => draw_confirm(frame, pending),
             Mode::Help => draw_help(frame),
@@ -710,11 +943,17 @@ impl App {
         .areas(area);
         frame.render_widget(Line::from(" HelloBox admin").bold().fg(ACCENT), title);
         frame.render_widget(
-            Tabs::new(["1 Overview", "2 Users", "3 Workspaces", "4 Activity"])
-                .select(self.tab.index())
-                .style(DIM)
-                .highlight_style(Style::new().fg(Color::White).add_modifier(Modifier::BOLD))
-                .divider(" "),
+            Tabs::new(
+                self.tabs()
+                    .iter()
+                    .enumerate()
+                    .map(|(i, tab)| format!("{} {}", i + 1, tab.title()))
+                    .collect::<Vec<_>>(),
+            )
+            .select(self.tab_index())
+            .style(DIM)
+            .highlight_style(Style::new().fg(Color::White).add_modifier(Modifier::BOLD))
+            .divider(" "),
             tabs,
         );
         frame.render_widget(Line::from(who).style(DIM).right_aligned(), account);
@@ -751,6 +990,7 @@ impl App {
                 "↑↓ select · Enter open · / search · f filter · ←→ page · s suspend · u lift · q quit"
             }
             Tab::Activity => "↑↓ scroll · r refresh · q quit",
+            Tab::Directory => "↑↓ select · Enter review · r refresh · q quit",
         };
         frame.render_widget(Line::from(format!(" {hints}")).style(DIM), area);
     }
@@ -800,7 +1040,11 @@ impl App {
             "Workspaces",
             number(spaces.total),
             match spaces.paying {
-                Some(paying) => format!("{} paying ({})", number(paying), percent(paying, spaces.total)),
+                Some(paying) => format!(
+                    "{} paying ({})",
+                    number(paying),
+                    percent(paying, spaces.total)
+                ),
                 None => format!("+{} in 30 days", number(spaces.new30d)),
             },
         );
@@ -872,7 +1116,11 @@ impl App {
                 "Workspaces",
                 vec![
                     ("Connected", spaces.connected_to_resend, ACCENT),
-                    ("Not yet", spaces.total.saturating_sub(spaces.connected_to_resend), Color::Gray),
+                    (
+                        "Not yet",
+                        spaces.total.saturating_sub(spaces.connected_to_resend),
+                        Color::Gray,
+                    ),
                 ],
             ),
         };
@@ -1067,7 +1315,11 @@ impl App {
             ];
             if billing {
                 cells.push(Line::from(
-                    space.plan.as_deref().map(plan_span).unwrap_or_else(|| Span::raw("–")),
+                    space
+                        .plan
+                        .as_deref()
+                        .map(plan_span)
+                        .unwrap_or_else(|| Span::raw("–")),
                 ));
             }
             cells.extend([
@@ -1094,13 +1346,69 @@ impl App {
         ]);
         headers.extend(["Members", "Mailboxes", "Storage", "Created", "Status"]);
         let table = Table::new(rows, widths)
-        .header(header_row(headers))
-        .block(panel(&title))
-        .row_highlight_style(Style::new().add_modifier(Modifier::REVERSED))
-        .highlight_symbol("› ");
+            .header(header_row(headers))
+            .block(panel(&title))
+            .row_highlight_style(Style::new().add_modifier(Modifier::REVERSED))
+            .highlight_symbol("› ");
         frame.render_stateful_widget(table, area, &mut page.table);
         if page.loaded && page.rows.is_empty() {
             empty(frame, area, "No workspaces match");
+        }
+    }
+
+    fn draw_directory(&mut self, frame: &mut Frame, area: Rect) {
+        let Some(queue) = &self.directory else {
+            return;
+        };
+        let reviews = queue.reviews.iter().map(|row| {
+            Row::new(vec![
+                Line::from(flag_span(row.worst.as_deref())),
+                Line::from(if row.update { "Update" } else { "New" }),
+                Line::from(format!("{} v{}", row.name, row.number)).bold(),
+                Line::from(row.workspace.clone()),
+                Line::from(ago(Some(&row.submitted_at))),
+            ])
+        });
+        let reports = queue.reports.iter().map(|row| {
+            Row::new(vec![
+                Line::from(Span::styled("●", Style::new().fg(Color::Red))),
+                Line::from(if row.hidden {
+                    "Reported, hidden"
+                } else {
+                    "Reported"
+                }),
+                Line::from(row.name.clone()).bold(),
+                Line::from(format!("/providers/{}", row.slug)),
+                Line::from(format!("{} open", row.open)),
+            ])
+        });
+        let badges = queue.badges.iter().map(|row| {
+            Row::new(vec![
+                Line::from(Span::styled("●", Style::new().fg(Color::Blue))),
+                Line::from("Badge name"),
+                Line::from(row.name.clone()).bold(),
+                Line::from(row.domain.clone()),
+                Line::from(""),
+            ])
+        });
+        let total = queue.reviews.len() + queue.reports.len() + queue.badges.len();
+        let table = Table::new(
+            reviews.chain(reports).chain(badges),
+            [
+                Constraint::Length(2),
+                Constraint::Length(17),
+                Constraint::Fill(3),
+                Constraint::Fill(2),
+                Constraint::Length(14),
+            ],
+        )
+        .header(header_row(["", "Kind", "Listing", "Publisher", "Waiting"]))
+        .block(panel(&format!("Provider directory · {total} to look at")))
+        .row_highlight_style(Style::new().add_modifier(Modifier::REVERSED))
+        .highlight_symbol("› ");
+        frame.render_stateful_widget(table, area, &mut self.directory_table);
+        if total == 0 {
+            empty(frame, area, "Nothing waiting for review");
         }
     }
 
@@ -1108,7 +1416,9 @@ impl App {
         let rows = self.activity.iter().map(|entry| {
             let color = match entry.action.as_str() {
                 "user.banned" | "workspace.suspended" | "user.signed_out" => Color::Red,
-                "user.unbanned" | "workspace.unsuspended" => Color::Green,
+                "user.unbanned" | "workspace.unsuspended" | "directory.approved" => Color::Green,
+                "directory.badge_name_allowed" => Color::Green,
+                "directory.rejected" | "directory.taken_down" => Color::Red,
                 _ => Color::Reset,
             };
             Row::new(vec![
@@ -1405,6 +1715,237 @@ fn draw_workspace_detail(frame: &mut Frame, space: &WorkspaceDetail) {
     popup(frame, &space.name, lines, 72);
 }
 
+fn badge_waiting(review: &ReviewDetail) -> bool {
+    review
+        .verification
+        .as_ref()
+        .is_some_and(|verification| verification.state == "name_review")
+}
+
+// The keys on a review: decisions on a waiting version, and takedowns on a live listing.
+fn review_pending(key: char, review: &ReviewDetail) -> Option<Pending> {
+    let version = || review.version_id.clone();
+    let listing = || review.listing_id.clone();
+    let label = format!("{} v{}", review.name, review.number);
+    let waiting = review.status == "pending";
+    let up = review.listing_status == "live" || review.listing_status == "in_review";
+    match key {
+        'a' if waiting => Some(Pending::Approve {
+            id: version(),
+            label,
+        }),
+        'x' if waiting => Some(Pending::Reject {
+            id: version(),
+            label,
+        }),
+        'c' if waiting => Some(Pending::Changes {
+            id: version(),
+            label,
+        }),
+        't' if up => Some(Pending::TakeDown {
+            id: listing(),
+            label: review.name.clone(),
+        }),
+        'n' if !review.reserved_name_allowed => Some(Pending::AllowName {
+            id: listing(),
+            label: review.name.clone(),
+        }),
+        'd' if !review.reports.is_empty() => Some(Pending::DismissReports {
+            id: listing(),
+            label: review.name.clone(),
+        }),
+        'b' if badge_waiting(review) => Some(Pending::AllowBadgeName {
+            id: listing(),
+            label: review.name.clone(),
+        }),
+        _ => None,
+    }
+}
+
+fn flag_span(level: Option<&str>) -> Span<'static> {
+    match level {
+        Some("red") => Span::styled("●", Style::new().fg(Color::Red)),
+        Some("amber") => Span::styled("●", Style::new().fg(Color::Yellow)),
+        Some(_) => Span::styled("●", Style::new().fg(Color::Blue)),
+        None => Span::styled("●", Style::new().fg(Color::Green)),
+    }
+}
+
+fn draw_review(frame: &mut Frame, review: &ReviewDetail, scroll: u16) {
+    let mut lines = vec![
+        field(
+            "Listing",
+            format!("{} · v{} · {}", review.name, review.number, review.status),
+        ),
+        field("Page", review.page_url.clone()),
+        field(
+            "Status",
+            format!(
+                "{}{}",
+                review.listing_status,
+                if review.hidden {
+                    ", hidden by reports"
+                } else {
+                    ""
+                }
+            ),
+        ),
+        field("Category", review.category.clone()),
+        field("Description", review.description.clone()),
+        field(
+            "Docs",
+            review.docs_url.clone().unwrap_or_else(|| "none".into()),
+        ),
+        field(
+            "Logo",
+            if review.logo_url.is_some() {
+                "yes (l to open)"
+            } else {
+                "none"
+            },
+        ),
+        field("Hosts", review.hosts.join(", ")),
+    ];
+    if !review.approved_hosts.is_empty() {
+        lines.push(field("Approved hosts", review.approved_hosts.join(", ")));
+    }
+    lines.push(field("Installs", number(review.installs)));
+    lines.push(field(
+        "Verified",
+        review
+            .verification
+            .as_ref()
+            .map_or("no".into(), |v| format!("{} ({})", v.domain, v.state)),
+    ));
+    lines.push(Line::default());
+    lines.push(Line::from("Publisher").bold());
+    let publisher = &review.publisher;
+    lines.push(Line::from(vec![
+        Span::styled(format!("{:<18}", "Workspace"), DIM),
+        Span::raw(format!("{} · ", publisher.workspace)),
+        plan_span(&publisher.plan),
+    ]));
+    lines.push(field(
+        "Since",
+        publisher
+            .created_at
+            .as_deref()
+            .map(date)
+            .unwrap_or_default(),
+    ));
+    lines.push(field(
+        "Members, domains",
+        format!("{} · {}", publisher.members, publisher.domains),
+    ));
+    lines.push(field(
+        "Submitted by",
+        format!(
+            "{} · {}",
+            review.submitted_by.clone().unwrap_or_default(),
+            date_time(&review.submitted_at)
+        ),
+    ));
+    if !publisher.other_listings.is_empty() {
+        lines.push(field("Other listings", publisher.other_listings.join(", ")));
+    }
+    if review.reserved_name_allowed {
+        lines.push(field("Name", "allowed to use a reserved name"));
+    }
+    if let Some(note) = &review.note {
+        lines.push(field("Last note", note.clone()));
+    }
+    lines.push(Line::default());
+    lines.push(Line::from(format!("Flags ({})", review.flags.len())).bold());
+    if review.flags.is_empty() {
+        lines.push(Line::from("None").style(DIM));
+    }
+    for flag in &review.flags {
+        lines.push(Line::from(vec![
+            flag_span(Some(&flag.level)),
+            Span::raw(format!(" {} ", flag.message)),
+            Span::styled(flag.code.clone(), DIM),
+        ]));
+    }
+    if !review.reports.is_empty() {
+        lines.push(Line::default());
+        lines.push(Line::from(format!("Open reports ({})", review.reports.len())).bold());
+        for report in &review.reports {
+            lines.push(Line::from(vec![
+                Span::styled(
+                    format!("{:<15}", report.reason),
+                    Style::new().fg(Color::Red),
+                ),
+                Span::raw(format!(
+                    "{} · {} · {}",
+                    report.details.clone().unwrap_or_default(),
+                    report.email.clone().unwrap_or_default(),
+                    date(&report.created_at)
+                )),
+            ]));
+        }
+    }
+    lines.push(Line::default());
+    lines.push(
+        Line::from(match review.diff_against {
+            Some(number) => format!("Spec, against the live v{number}"),
+            None => "Spec (first version)".to_string(),
+        })
+        .bold(),
+    );
+    for line in review.diff.lines() {
+        let style = if line.starts_with('+') {
+            Style::new().fg(Color::Green)
+        } else if line.starts_with('-') {
+            Style::new().fg(Color::Red)
+        } else {
+            DIM
+        };
+        lines.push(Line::from(Span::styled(line.to_string(), style)));
+    }
+
+    let area = frame.area();
+    let width = area.width.saturating_sub(8).min(120);
+    let height = area.height.saturating_sub(4);
+    let popup_area = centered(area, width, height);
+    let [body, keys] =
+        Layout::vertical([Constraint::Fill(1), Constraint::Length(1)]).areas(popup_area);
+    frame.render_widget(Clear, popup_area);
+    let waiting = review.status == "pending";
+    let mut hints = vec![];
+    if waiting {
+        hints.push("a approve · x reject · c changes");
+    }
+    if review.listing_status == "live" || review.listing_status == "in_review" {
+        hints.push("t take down");
+    }
+    if !review.reserved_name_allowed {
+        hints.push("n allow name");
+    }
+    if !review.reports.is_empty() {
+        hints.push("d dismiss reports");
+    }
+    if badge_waiting(review) {
+        hints.push("b allow badge");
+    }
+    hints.push("o page · l logo · w docs · ↑↓ scroll · Esc");
+    frame.render_widget(
+        Paragraph::new(lines)
+            .wrap(Wrap { trim: false })
+            .scroll((scroll, 0))
+            .block(
+                Block::bordered()
+                    .border_type(BorderType::Rounded)
+                    .border_style(Style::new().fg(ACCENT))
+                    .title(format!(" Review {} ", review.slug)),
+            ),
+        body,
+    );
+    frame.render_widget(
+        Line::from(format!(" {}", hints.join(" · "))).style(DIM),
+        keys,
+    );
+}
+
 fn draw_reason(frame: &mut Frame, pending: &Pending, input: &str) {
     let ready = input.trim().chars().count() >= 3;
     let lines = vec![
@@ -1437,10 +1978,7 @@ fn draw_confirm(frame: &mut Frame, pending: &Pending) {
 
 fn draw_help(frame: &mut Frame) {
     let keys = [
-        (
-            "1-4, Tab",
-            "Switch between Overview, Users, Workspaces and Activity",
-        ),
+        ("1-5, Tab", "Switch tabs"),
         ("r", "Refresh"),
         ("↑ ↓, j k", "Move the selection"),
         ("← →, p n", "Previous and next page"),
@@ -1450,6 +1988,11 @@ fn draw_help(frame: &mut Frame) {
         ("b / u", "Ban or unban a user"),
         ("o", "Sign a user out everywhere"),
         ("s / u", "Suspend a workspace, or lift it"),
+        ("a x c", "Directory: approve, reject, ask for changes"),
+        (
+            "t n d b",
+            "Directory: take down, allow a name, dismiss reports, allow a badge",
+        ),
         ("q, Ctrl-C", "Quit"),
     ];
     let mut lines: Vec<Line> = keys
@@ -1627,5 +2170,120 @@ mod tests {
         let text = screen(&mut app);
         assert!(text.contains("Ban bob@example.com"));
         assert!(text.contains("Reason, for the admin log"));
+    }
+    fn review() -> ReviewDetail {
+        serde_json::from_value(json!({
+            "versionId": "v1", "listingId": "l1", "slug": "acme-mail", "number": 2, "status": "pending",
+            "listingStatus": "live", "hidden": false, "name": "Acme Mail", "description": "Mail for teams",
+            "category": "transactional", "docsUrl": "https://docs.acme.com", "logoUrl": null,
+            "pageUrl": "https://hellobox.app/providers/acme-mail", "hosts": ["api.acme.com"],
+            "approvedHosts": ["api.acme.com"],
+            "flags": [{ "level": "red", "code": "lookalike", "message": "acme.com looks like acne.com" }],
+            "reservedNameAllowed": false, "diff": "  {\n-   \"name\": \"Acme\",\n+   \"name\": \"Acme Mail\",\n  }",
+            "diffAgainst": 1, "note": null, "submittedBy": "ada@acme.com", "submittedAt": "2026-11-27T10:00:00.000Z",
+            "installs": 4,
+            "publisher": { "workspace": "Acme", "plan": "starter", "createdAt": "2026-01-01T00:00:00.000Z", "members": 3, "domains": 2, "otherListings": [] },
+            "verification": null, "reports": []
+        }))
+        .unwrap()
+    }
+
+    #[test]
+    fn the_directory_tab_needs_the_section() {
+        assert!(
+            app().tabs().contains(&Tab::Directory),
+            "an older server has every screen"
+        );
+        assert!(!open_app().tabs().contains(&Tab::Directory));
+    }
+
+    #[test]
+    fn directory_lists_reviews_then_reports() {
+        let mut app = app();
+        app.tab = Tab::Directory;
+        app.directory = Some(
+            serde_json::from_value(json!({
+                "reviews": [{ "versionId": "v1", "name": "Acme Mail", "number": 1, "update": false, "worst": "amber", "workspace": "Acme", "submittedAt": "2026-11-27T10:00:00.000Z" }],
+                "reports": [{ "listingId": "l2", "slug": "fast-send", "name": "Fast Send", "open": 3, "hidden": true }]
+            }))
+            .unwrap(),
+        );
+        app.directory_table.select(Some(1));
+        let text = screen(&mut app);
+        assert!(text.contains("Acme Mail v1"));
+        assert!(text.contains("Reported, hidden"));
+        assert!(text.contains("2 to look at"));
+        assert_eq!(
+            app.selected_directory_target(),
+            Some(json!({ "listingId": "l2" }))
+        );
+    }
+
+    #[test]
+    fn a_review_shows_flags_and_the_diff() {
+        let mut app = app();
+        app.tab = Tab::Directory;
+        app.directory =
+            Some(serde_json::from_value(json!({ "reviews": [], "reports": [] })).unwrap());
+        app.mode = Mode::Detail(Detail::Review(Box::new(review()), 0));
+        let text = screen(&mut app);
+        assert!(text.contains("acme.com looks like acne.com"));
+        assert!(text.contains("against the live v1"));
+        assert!(text.contains("+   \"name\": \"Acme Mail\""));
+        assert!(text.contains("a approve"));
+    }
+
+    #[test]
+    fn rejecting_asks_for_a_reason_and_approving_doesnt() {
+        let review = review();
+        assert!(matches!(
+            review_pending('a', &review),
+            Some(Pending::Approve { .. })
+        ));
+        assert!(!review_pending('a', &review).unwrap().needs_reason());
+        assert!(review_pending('x', &review).unwrap().needs_reason());
+        assert!(review_pending('t', &review).unwrap().needs_reason());
+        assert!(
+            review_pending('d', &review).is_none(),
+            "no reports to dismiss"
+        );
+        let mut decided = review;
+        decided.status = "approved".into();
+        assert!(review_pending('a', &decided).is_none());
+    }
+
+    #[test]
+    fn the_badge_key_waits_for_a_proven_record() {
+        let mut review = review();
+        assert!(review_pending('b', &review).is_none());
+        review.verification = Some(
+            serde_json::from_value(json!({ "domain": "acmemail.io", "state": "name_review" }))
+                .unwrap(),
+        );
+        assert!(matches!(
+            review_pending('b', &review),
+            Some(Pending::AllowBadgeName { .. })
+        ));
+    }
+
+    #[test]
+    fn badges_follow_reports_in_the_queue() {
+        let mut app = app();
+        app.tab = Tab::Directory;
+        app.directory = Some(
+            serde_json::from_value(json!({
+                "reviews": [],
+                "reports": [],
+                "badges": [{ "listingId": "l3", "slug": "acme", "name": "Acme", "domain": "acmemail.io" }]
+            }))
+            .unwrap(),
+        );
+        app.directory_table.select(Some(0));
+        let text = screen(&mut app);
+        assert!(text.contains("Badge name"));
+        assert_eq!(
+            app.selected_directory_target(),
+            Some(json!({ "listingId": "l3" }))
+        );
     }
 }
