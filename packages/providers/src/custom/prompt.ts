@@ -1,10 +1,17 @@
 import { FORM_EXAMPLE, JSON_EXAMPLE } from "./examples";
 import { customSpecJsonSchema } from "./spec";
 
-// What people give their AI, with their provider's API docs pasted under it. The answer is
-// pasted back into HelloBox, which checks it like any other spec.
+// What people paste into the AI they code with, in their own project: it finds the provider
+// there and reads its docs itself. The answer is pasted back into HelloBox, which checks it
+// like any other spec.
 export function customSpecPrompt() {
-  return `You're writing a JSON "spec" that tells HelloBox how to send an email through an email provider's HTTP API. Read the provider's API documentation at the end, then answer with the spec only: one JSON object, no comments, no explanation.
+  return `You're writing a JSON "spec" that tells HelloBox how to send an email through an email provider's HTTP API.
+
+## Your task
+
+1. Find the email provider this project sends with: look at its dependencies, environment variables and the code that sends email. If there's none, or more than one, ask me which provider to use.
+2. Read that provider's official API documentation for sending an email, and for listing domains and delivery webhooks if it has them. Fetch it from the provider's website if you can; if you can't, ask me to paste it.
+3. Answer with the spec only: one JSON object, no comments, no explanation. Don't change any files in the project.
 
 ## Rules
 
@@ -39,9 +46,6 @@ ${JSON.stringify(FORM_EXAMPLE, null, 2)}
 
 ${JSON.stringify(customSpecJsonSchema())}
 
-## The provider's API documentation
-
-(Paste the documentation for sending an email here, and for domains and webhooks if you want them.)
 `;
 }
 

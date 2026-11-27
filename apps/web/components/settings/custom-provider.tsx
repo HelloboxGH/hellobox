@@ -1,6 +1,6 @@
 "use client";
 
-import { Code, Copy, Key, Lightning, Plus, Robot, Sparkle, Trash, Warning } from "@phosphor-icons/react";
+import { Code, Copy, Key, Lightning, Plus, Sparkle, Trash, Warning } from "@phosphor-icons/react";
 import {
   buildRequest,
   checkSpec,
@@ -28,6 +28,15 @@ import { Textarea } from "@/components/ui/textarea";
 import { call } from "@/core/client/api";
 import { notify } from "@/core/client/notify";
 import { useRun } from "./shared";
+import { ClaudeIcon, CursorIcon, GeminiIcon, OpenAIIcon } from "@/components/brand-icons";
+
+// The coding agents people are most likely to have open in their project.
+const AGENTS = [
+  { name: "Claude Code", icon: <ClaudeIcon className="size-4" /> },
+  { name: "Codex", icon: <OpenAIIcon className="size-4" /> },
+  { name: "Cursor", icon: <CursorIcon className="size-4" /> },
+  { name: "Gemini", icon: <GeminiIcon className="size-4" /> },
+];
 
 // The spec as it's being edited: maybe not valid yet, so loosely typed.
 type Draft = Record<string, unknown> & { name?: string; send?: Record<string, unknown> };
@@ -342,7 +351,7 @@ export function CustomConnectDialog({ open, onOpenChange, reconnectId, initialSp
   defaultFrom?: string;
 }) {
   const run = useRun();
-  const [tab, setTab] = useState(initialSpec ? "editor" : "curl");
+  const [tab, setTab] = useState(initialSpec ? "editor" : "ai");
   const [curl, setCurl] = useState("");
   const [curlError, setCurlError] = useState<string | null>(null);
   const [answer, setAnswer] = useState("");
@@ -380,7 +389,7 @@ export function CustomConnectDialog({ open, onOpenChange, reconnectId, initialSp
   }
 
   async function copyPrompt() {
-    await run(() => navigator.clipboard.writeText(customSpecPrompt()), "Prompt copied. Paste it into your AI, with your provider's API docs under it.");
+    await run(() => navigator.clipboard.writeText(customSpecPrompt()), "Prompt copied. Paste it into your AI, in your project.");
   }
 
   function readAnswer() {
@@ -428,7 +437,7 @@ export function CustomConnectDialog({ open, onOpenChange, reconnectId, initialSp
     setJson("");
     setValues({});
     setTest(null);
-    setTab("curl");
+    setTab("ai");
     refresh();
     onOpenChange(false);
   }
@@ -447,8 +456,8 @@ export function CustomConnectDialog({ open, onOpenChange, reconnectId, initialSp
           <DialogPanel className="space-y-5">
             <Tabs value={tab} onValueChange={(value) => setTab(String(value))}>
               <TabsList>
+                <TabsTab value="ai"><Sparkle /> Ask your AI</TabsTab>
                 <TabsTab value="curl"><Lightning /> Paste curl</TabsTab>
-                <TabsTab value="ai"><Robot /> Ask your AI</TabsTab>
                 <TabsTab value="editor" disabled={!draft}>Editor</TabsTab>
                 <TabsTab value="json"><Code /> JSON</TabsTab>
               </TabsList>
@@ -467,16 +476,22 @@ export function CustomConnectDialog({ open, onOpenChange, reconnectId, initialSp
                 <Button type="button" variant="outline" disabled={!curl.trim()} onClick={readCurl}>Read the command</Button>
               </TabsPanel>
               <TabsPanel value="ai" className="space-y-2 pt-3">
-                <ol className="list-decimal space-y-1 pl-4 text-muted-foreground text-sm">
-                  <li>Copy the prompt, and paste it into ChatGPT, Claude or any AI you use.</li>
-                  <li>Under it, paste your provider&apos;s API docs for sending an email (and for webhooks, to get delivery events).</li>
-                  <li>Paste the AI&apos;s answer here. It never needs your real keys.</li>
-                </ol>
-                <Button type="button" variant="outline" onClick={copyPrompt}><Copy /> Copy prompt</Button>
+                <div className="flex flex-wrap items-center gap-3 rounded-xl border bg-muted/40 p-3">
+                  <span className="flex -space-x-1.5" aria-hidden>
+                    {AGENTS.map(({ name, icon }) => (
+                      <span key={name} title={name} className="flex size-8 items-center justify-center rounded-full border-2 border-background bg-card shadow-xs">{icon}</span>
+                    ))}
+                  </span>
+                  <p className="min-w-0 flex-1 text-sm">
+                    Paste this into Claude Code, Codex, Cursor, Gemini or any AI, in your project.
+                    <span className="block text-muted-foreground text-xs">It finds your provider and its docs. It never needs your keys.</span>
+                  </p>
+                  <Button type="button" onClick={copyPrompt}><Copy /> Copy prompt</Button>
+                </div>
                 <Textarea
                   value={answer}
                   onChange={(event) => setAnswer(event.target.value)}
-                  placeholder="The AI's answer"
+                  placeholder="Then paste its answer here"
                   spellCheck={false}
                   className="min-h-40 font-mono text-xs"
                 />

@@ -60,6 +60,7 @@ describe("the AI prompt", () => {
     expect(prompt).toContain("Never put a real API key");
     expect(prompt).toContain('"personalizations"');
     expect(prompt).toContain('"$schema"');
+    expect(prompt).toContain("Find the email provider this project sends with");
   });
 
   test("reads the answer, in a code block or not", () => {
