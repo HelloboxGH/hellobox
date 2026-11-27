@@ -270,6 +270,12 @@ export async function ingestEmail(connectionId: string, emailId: string) {
     return { status: "duplicate" as const };
   }
 
+  if (!source.fetchInbound) {
+    // Only mail from our own server can reach a connection that only sends. Retrying
+    // won't change that, so the job ends here.
+    console.error(`[ingest] ${connection.provider} doesn't receive mail, so ${emailId} can't be read`);
+    return { status: "not-receiving" as const };
+  }
   const email = await source
     .fetchInbound(emailId, await hintFor(connectionId, emailId))
     .catch(async (error) => {
@@ -526,6 +532,8 @@ export async function backfillConnection(
 ) {
   const db = getDb();
   const provider = await providerForConnection(connectionId);
+  // A connection that only sends has nothing of its own to list.
+  if (!provider.listInbound) return;
   let next: string | undefined;
   for (let page = 0; page < 5; page += 1) {
     const { ids, next: following } = await provider.listInbound(next).catch(async (error) => {

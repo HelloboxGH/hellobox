@@ -10,3 +10,4 @@ export * from "./ses/credentials";
 export * from "./ses/provider";
 export * from "./ses/sns";
 export * from "./types";
+export * from "./smtp";

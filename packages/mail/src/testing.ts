@@ -90,7 +90,7 @@ export async function testWorkspace(extensions: Extensions = {}) {
 
   const provider = {
     kind: "demo",
-    capabilities: { backfill: false, refreshDomains: false },
+    capabilities: { receiving: true, backfill: false, refreshDomains: false },
     listDomains: async () => [],
     // Like SES, it writes its own Message-ID over ours.
     send: async (message: OutgoingMessage, id: string) => {

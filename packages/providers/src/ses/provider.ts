@@ -174,7 +174,7 @@ export class SesProvider implements MailProvider {
   // SES only holds mail for us once receiving is on. Domains verify in the background
   // after DNS changes.
   get capabilities() {
-    return { backfill: Boolean(this.target.receiving), refreshDomains: true };
+    return { receiving: true, backfill: Boolean(this.target.receiving), refreshDomains: true };
   }
 
   private receiving() {

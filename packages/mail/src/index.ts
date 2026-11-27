@@ -42,3 +42,4 @@ export * from "./unsubscribe";
 export * from "./ses";
 export * from "./safe-url";
 export * from "./notifications";
+export * from "./smtp";

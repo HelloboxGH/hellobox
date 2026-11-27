@@ -99,6 +99,9 @@ export const WORKSPACE_EVENTS = [
   "connection.mailgun_connected",
   "connection.mailgun_reconnected",
   "connection.mailgun_receiving",
+  // Providers added from 2026-11-27 share these, with the provider in the details.
+  "connection.connected",
+  "connection.reconnected",
   "suppression.removed",
   "sender.blocked",
   "agent.connected",

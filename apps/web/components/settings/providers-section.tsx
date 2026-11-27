@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowSquareOut, Check, HourglassMedium, Plus, Warning } from "@phosphor-icons/react";
+import { ArrowSquareOut, Check, EnvelopeSimple, HourglassMedium, Plus, Warning } from "@phosphor-icons/react";
 import { type FormEvent, useCallback, useEffect, useState } from "react";
 import { SES_REGIONS, stackConsoleUrl, type SesRegion } from "@hellobox/providers/connect";
 import { PROVIDER_INFO, type ProviderKind } from "@hellobox/providers/types";
@@ -86,6 +86,11 @@ export function ProvidersSection({ data, refresh, admin }: { data: Bootstrap; re
     const broken = data.connections.find((c) => c.provider === "mailgun" && c.status === "needs_reconnect");
     return { reconnectId: broken?.id };
   });
+  const [smtp, setSmtp] = useState<{ reconnectId?: string } | null>(() => {
+    if (requested !== "smtp" || !admin) return null;
+    const broken = data.connections.find((c) => c.provider === "smtp" && c.status === "needs_reconnect");
+    return { reconnectId: broken?.id };
+  });
   const [picking, setPicking] = useState(false);
   const [requesting, setRequesting] = useState<{ provider?: string } | null>(null);
   const connectHref = `/api/resend/oauth/start?workspace=${data.workspace.id}`;
@@ -95,6 +100,15 @@ export function ProvidersSection({ data, refresh, admin }: { data: Bootstrap; re
     postmark: "ready",
     mailgun: "ready",
     demo: "hidden",
+    // Offered as each one is built (plans/PROVIDERS.md).
+    // Its domains receive with HelloBox, so only where this HelloBox runs a mail server.
+    smtp: data.helloboxMx ? "ready" : "hidden",
+    sendgrid: "hidden",
+    brevo: "hidden",
+    mailersend: "hidden",
+    mailjet: "hidden",
+    bird: "hidden",
+    custom: "hidden",
   };
 
   function pick(kind: ProviderKind) {
@@ -102,6 +116,7 @@ export function ProvidersSection({ data, refresh, admin }: { data: Bootstrap; re
     if (kind === "ses") setConnecting(true);
     else if (kind === "postmark") setPostmark({});
     else if (kind === "mailgun") setMailgun({});
+    else if (kind === "smtp") setSmtp({});
     // An API route that redirects to Resend, so a full page load.
     else if (kind === "resend") window.location.assign(new URL(connectHref, window.location.origin));
   }
@@ -147,6 +162,15 @@ export function ProvidersSection({ data, refresh, admin }: { data: Bootstrap; re
             admin={admin}
             onReconnect={() => setMailgun({ reconnectId: connection.id })}
           />
+        ) : connection.provider === "smtp" ? (
+          <SmtpConnection
+            key={connection.id}
+            connection={connection}
+            data={data}
+            refresh={refresh}
+            admin={admin}
+            onReconnect={() => setSmtp({ reconnectId: connection.id })}
+          />
         ) : connection.provider === "resend" ? (
           <ResendConnection key={connection.id} connection={connection} data={data} refresh={refresh} admin={admin} connectHref={connectHref} />
         ) : null,
@@ -190,6 +214,12 @@ export function ProvidersSection({ data, refresh, admin }: { data: Bootstrap; re
         open={mailgun !== null}
         reconnectId={mailgun?.reconnectId}
         onOpenChange={(open) => !open && setMailgun(null)}
+        refresh={refresh}
+      />
+      <SmtpConnectDialog
+        open={smtp !== null}
+        reconnectId={smtp?.reconnectId}
+        onOpenChange={(open) => !open && setSmtp(null)}
         refresh={refresh}
       />
     </div>
@@ -1017,6 +1047,86 @@ function MailgunConnection({ connection, data, refresh, admin, onReconnect }: {
             setReceiving={setReceiving}
           />
         </>
+      )}
+    </div>
+  );
+}
+
+function SmtpConnectDialog({ open, onOpenChange, reconnectId, refresh }: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  reconnectId?: string;
+  refresh: () => void;
+}) {
+  const run = useRun();
+
+  async function connect(values: Record<string, string>) {
+    const done = await run(() =>
+      call("/connections/smtp/connect", {
+        host: values.host ?? "",
+        port: Number(values.port) as 465 | 587 | 2525 | 25,
+        username: values.username ?? "",
+        password: values.password ?? "",
+        connectionId: reconnectId,
+      }),
+    );
+    if (!done) return;
+    notify(reconnectId ? "SMTP is connected again" : "SMTP is connected. Add the domains you send from.");
+    refresh();
+    onOpenChange(false);
+  }
+
+  return <PasteKeyDialog provider={PASTE_KEY_PROVIDERS.smtp} open={open} onOpenChange={onOpenChange} onSubmit={connect} />;
+}
+
+// SMTP only sends: its domains are the ones added here, and each receives with HelloBox.
+function SmtpConnection({ connection, data, refresh, admin, onReconnect }: {
+  connection: Connection;
+  data: Bootstrap;
+  refresh: () => void;
+  admin: boolean;
+  onReconnect: () => void;
+}) {
+  const run = useRun();
+
+  return (
+    <div className="space-y-3 rounded-2xl border p-3">
+      <ProviderRow
+        icon={<EnvelopeSimple className="size-5 text-muted-foreground" />}
+        name="SMTP"
+        detail={connection.smtpHost ?? undefined}
+        status={connection.status}
+      >
+        {admin && connection.status === "needs_reconnect" && <Button size="sm" onClick={onReconnect}>Connect again</Button>}
+        {admin && (
+          <DisconnectButton
+            title="Disconnect SMTP?"
+            description="Sending through this server stops. Your existing mail stays here."
+            onConfirm={async () => {
+              await run(() => call("/connections/disconnect", { id: connection.id }), "Disconnected");
+              refresh();
+            }}
+          />
+        )}
+      </ProviderRow>
+
+      {connection.status === "needs_reconnect" && (
+        <Alert variant="warning" className="rounded-xl">
+          <Warning />
+          <AlertDescription>The server stopped accepting the username or password. Connect again with the current ones.</AlertDescription>
+        </Alert>
+      )}
+
+      {connection.status === "active" && (
+        <DomainList
+          connection={connection}
+          data={data}
+          admin={admin}
+          refresh={refresh}
+          canAdd
+          emptyText="Add the domains you send from. Each one then receives with HelloBox."
+          receiving={() => ({ on: false })}
+        />
       )}
     </div>
   );

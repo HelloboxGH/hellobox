@@ -235,7 +235,7 @@ export class MailgunProvider implements MailProvider {
   readonly kind = "mailgun" as const;
   // Mailgun keeps stored mail for 3 days, which backfill reads, and domains verify in the
   // background after DNS changes.
-  readonly capabilities = { backfill: true, refreshDomains: true };
+  readonly capabilities = { receiving: true, backfill: true, refreshDomains: true };
   readonly api: MailgunApi;
   private readonly stored: StoredInbound;
 

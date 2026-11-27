@@ -4,12 +4,14 @@ import { getExtensions } from "@hellobox/extensions";
 import {
   isMailgunAuthError,
   isPostmarkAuthError,
+  isSmtpAuthError,
   MailgunProvider,
   PROVIDER_INFO,
   PostmarkProvider,
   ResendProvider,
   RoleAccessError,
   SesProvider,
+  SmtpProvider,
   type MailProvider,
   type ProviderKind,
 } from "@hellobox/providers";
@@ -22,6 +24,7 @@ import {
 import { and, eq, inArray } from "drizzle-orm";
 import { fitsPlan } from "./domain-names";
 import { claimConflict, countedDomainNames, domainClaims, lockDomainName } from "./domains";
+import { resolvePublicHost } from "./safe-url";
 
 type Connection = typeof connections.$inferSelect;
 
@@ -117,6 +120,15 @@ export function mailgunProviderFor(connection: Connection) {
   });
 }
 
+export function smtpProviderFor(connection: Connection) {
+  const { smtp } = connection.config;
+  if (!smtp || !connection.accessTokenEnc) throw new Error("This SMTP connection hasn't finished connecting");
+  return new SmtpProvider(
+    { host: smtp.host, port: smtp.port, username: smtp.username, password: decrypt(connection.accessTokenEnc), domains: smtp.domains },
+    resolvePublicHost,
+  );
+}
+
 export function providerFor(connection: Connection): MailProvider {
   switch (connection.provider) {
     case "ses":
@@ -127,6 +139,8 @@ export function providerFor(connection: Connection): MailProvider {
       return postmarkProviderFor(connection);
     case "mailgun":
       return mailgunProviderFor(connection);
+    case "smtp":
+      return smtpProviderFor(connection);
     default: {
       // A kind cloud implements (the public demo's).
       const make = getExtensions().mail?.providers?.[connection.provider];
@@ -158,6 +172,8 @@ export async function tearDownConnection(connection: Connection) {
       case "mailgun":
         if (connection.status === "active") await mailgunProviderFor(connection).disconnect(connection.webhookId);
         return;
+      // Nothing was set up at the server.
+      case "smtp":
       case "demo":
         return;
     }
@@ -188,6 +204,7 @@ export function grantErrorProvider(error: unknown): ProviderKind | null {
   if (error instanceof RoleAccessError) return "ses";
   if (isPostmarkAuthError(error)) return "postmark";
   if (isMailgunAuthError(error)) return "mailgun";
+  if (isSmtpAuthError(error)) return "smtp";
   if (error instanceof OAuthGrantError) return "resend";
   // "Access token is missing required scopes: full_access", or a token Resend no longer knows.
   if (error instanceof ResendApiError && (error.status === 401 || (error.status === 403 && /scope/i.test(error.message)))) {

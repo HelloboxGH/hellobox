@@ -288,6 +288,8 @@ export const bootstrap = workspaceAction("/app/bootstrap").handler(async ({ ctx 
       pendingInboundDomain: config.postmark?.pendingInboundDomain ?? null,
       // Mailgun: the region its domains live in.
       mailgunRegion: config.mailgun?.region ?? null,
+      // SMTP: the server, shown next to the connection. Never the username or password.
+      smtpHost: config.smtp?.host ?? null,
     })),
     providers: { ses: isAwsBrokerConfigured(), cloudflare: isCloudflareConfigured() },
     // DNS hosts the workspace let us write records to.

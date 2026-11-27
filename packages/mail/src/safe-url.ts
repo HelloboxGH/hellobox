@@ -129,3 +129,21 @@ export function postToPublicUrl(
     req.end(body);
   });
 }
+
+export class UnsafeHostError extends Error {}
+
+// One public address for a host someone gave us, such as an SMTP server. Every address the
+// name has must be public, so it can't also point somewhere internal. Connect to the
+// address returned, not the name, so the DNS can't change in between.
+export async function resolvePublicHost(host: string): Promise<string> {
+  const addresses = isIP(host)
+    ? [{ address: host, family: isIP(host) }]
+    : await new Promise<LookupAddress[]>((resolve, reject) =>
+        dnsLookup(host, { all: true }, (error, found) => (error ? reject(new UnsafeHostError(`Couldn't find ${host}`)) : resolve(found))),
+      );
+  if (!addresses.length) throw new UnsafeHostError(`Couldn't find ${host}`);
+  if (!allowsLocal() && addresses.some((item) => isBlockedAddress(item.address))) {
+    throw new UnsafeHostError(`${host} points to a private address, which can't be used`);
+  }
+  return addresses[0]!.address;
+}

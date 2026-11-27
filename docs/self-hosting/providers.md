@@ -1,7 +1,7 @@
 # Connect your email provider
 
 HelloBox doesn't send or receive email by itself. It works through your account at an email
-provider: Postmark, Mailgun, Resend or Amazon SES. Your mail keeps going through that
+provider: Postmark, Mailgun, Resend, Amazon SES, or any SMTP server. Your mail keeps going through that
 account, under your name and reputation; HelloBox shows it to your team and sends the
 replies.
 
@@ -48,6 +48,7 @@ If you already send with one of these, use it. If you're choosing:
 | **Mailgun** | Easy. Paste two keys. | Receives for many domains on one account. |
 | **Resend** | Medium. Register an app once with one command, then sign in. | Domains and receiving are managed in Resend's own dashboard. |
 | **Amazon SES** | The most work: about 30 minutes in AWS, once. | The cheapest at volume. New accounts start in a *sandbox* and need AWS's approval to send to anyone. |
+| **SMTP** | Easy. A server, a username and a password. | Only sends, so it needs HelloBox's own mail server to receive. Sent mail shows *Sent*, never *Delivered*, and campaigns aren't available. |
 
 You can connect more than one provider to a workspace later.
 
@@ -395,10 +396,35 @@ Your existing mail stays in HelloBox. To end HelloBox's access completely, also 
 
 For anything else about SES itself, see [AWS's SES guide](https://docs.aws.amazon.com/ses/latest/dg/Welcome.html).
 
+## SMTP
+
+**What you need:** an SMTP server you can send through with a username and password, such as
+Google Workspace's relay, Zoho, Fastmail or your own, and HelloBox's own mail server running
+(`MX_HOSTNAME` and `MX_SIGNING_KEY` set on the web app). Without the mail server, SMTP isn't
+offered: an SMTP server can't pass incoming mail on to HelloBox.
+
+1. In HelloBox, open **Settings → Domains → Connect a provider → SMTP**.
+2. Enter the **server** (like `smtp.example.com`), the **port**, the **username** and the
+   **password**. Use an app password where your provider offers one.
+   - **587** (or **2525**) starts plain and must switch to a secure connection (STARTTLS).
+   - **465** is secure from the start.
+   - A server that offers neither isn't used, so a password never crosses the network in the
+     clear.
+3. Press **Connect**. HelloBox signs in once to check, and saves nothing if that fails.
+4. **Add domain** for each domain you send from. An SMTP server can't list them.
+5. On each domain, press **Receive with HelloBox…** and follow the steps: a TXT record that
+   proves the domain is yours, then the MX record.
+
+Set up SPF and DKIM for the domain wherever your SMTP provider says, so your mail doesn't land
+in spam. HelloBox has no records of its own to show for SMTP.
+
+If the password changes, the connection shows **Connect again**.
+
 ## Set up your domains
 
 After you connect, **Settings → Domains** lists the domains in your provider account. For
-Postmark, Mailgun and SES, **Add domain** adds a new one; for Resend, add it in Resend.
+Postmark, Mailgun and SES, **Add domain** adds a new one; for Resend, add it in Resend. For
+SMTP, add each domain you send from.
 
 ### Add the DNS records
 
@@ -469,7 +495,7 @@ If you change `APP_URL` later, your provider still calls the old addresses: pres
 
 ## Use another provider
 
-These four are built in. If you use another one, you can add it: each provider is one
+These are built in. If you use another one, you can add it: each provider is one
 implementation of the `MailProvider` interface, and Postmark and Mailgun are the shortest
 examples. Read the [contributing guide](../../CONTRIBUTING.md), or ask in
 [Discussions](https://github.com/HelloboxGH/hellobox/discussions) first.

@@ -73,6 +73,8 @@ export function DomainList({ connection, data, admin, refresh, receiving, setRec
   const [, runReceiving] = useRunning();
   const [, runCheck] = useRunning();
   const provider = PROVIDER_INFO[connection.provider].name;
+  // A provider that only sends: its domains receive with HelloBox or not at all.
+  const sendOnly = !PROVIDER_INFO[connection.provider].receives;
 
   async function toggleReceiving(domain: string, on: boolean) {
     if (!setReceiving) return;
@@ -119,7 +121,8 @@ export function DomainList({ connection, data, admin, refresh, receiving, setRec
             const done = await runAdd(async () => {
               const setup = await call("/connections/domains/add", { connectionId: connection.id, domain });
               setNewDomain("");
-              setDns({ domain, setup });
+              // A send-only provider has no records of its own to add.
+              if (setup.records.length) setDns({ domain, setup });
             }, `${domain} added`);
             if (done) setAdding(false);
             refresh();
@@ -154,6 +157,8 @@ export function DomainList({ connection, data, admin, refresh, receiving, setRec
                   <span className="mt-1 block">
                     {viaHellobox
                       ? <Badge variant="success" size="sm">Receiving with HelloBox</Badge>
+                      : sendOnly
+                      ? <Badge variant="secondary" size="sm">Sending only</Badge>
                       : !verified
                       ? <Badge variant="warning" size="sm">Waiting for DNS</Badge>
                       : state.waiting
@@ -166,6 +171,9 @@ export function DomainList({ connection, data, admin, refresh, receiving, setRec
                   </span>
                 </span>
                 <span className="flex shrink-0 items-center gap-1.5">
+                  {admin && sendOnly && helloboxMx && !viaHellobox && (
+                    <Button size="xs" variant="outline" onClick={() => setHelloboxFor(domain)}>Receive with HelloBox…</Button>
+                  )}
                   {admin && !verified && (
                     <Button size="xs" variant="outline" onClick={() => setDns({ domain: domain.name, setup: null, autoApply: true })}>Add DNS records</Button>
                   )}
@@ -187,7 +195,7 @@ export function DomainList({ connection, data, admin, refresh, receiving, setRec
                       <DotsThree weight="bold" />
                     </MenuTrigger>
                     <MenuPopup align="end">
-                      <MenuItem onClick={() => setDns({ domain: domain.name, setup: null })}>DNS records</MenuItem>
+                      {!sendOnly && <MenuItem onClick={() => setDns({ domain: domain.name, setup: null })}>DNS records</MenuItem>}
                       {admin && helloboxMx && (
                         <MenuItem onClick={() => setHelloboxFor(domain)}>
                           {viaHellobox ? "Receiving with HelloBox" : "Receive with HelloBox…"}
@@ -209,7 +217,7 @@ export function DomainList({ connection, data, admin, refresh, receiving, setRec
                   )}
                 </span>
               </div>
-              {admin && lastOfGroup && !groupReceives && (
+              {admin && !sendOnly && lastOfGroup && !groupReceives && (
                 <div className="px-3 pb-2 ps-8">
                   <Button size="xs" variant="ghost" className="-ms-2 text-muted-foreground" onClick={() => setSubdomainFor(groupRoot)}>
                     <Plus /> Receive replies on a subdomain
@@ -259,6 +267,14 @@ const PROVIDER_STEP: Record<ProviderKind, (subdomain: string) => string> = {
   postmark: (subdomain) => `We add ${subdomain} to Postmark and make it this server's inbound domain.`,
   mailgun: (subdomain) => `We add ${subdomain} to Mailgun, with a route that sends its mail to HelloBox.`,
   demo: () => "Not available in the demo.",
+  // Not built yet (plans/PROVIDERS.md). Each one's PR says what it does here.
+  smtp: (subdomain) => `${subdomain} receives with HelloBox.`,
+  sendgrid: (subdomain) => `We add ${subdomain} to SendGrid.`,
+  brevo: (subdomain) => `We add ${subdomain} to Brevo.`,
+  mailersend: (subdomain) => `We add ${subdomain} to MailerSend.`,
+  mailjet: (subdomain) => `We add ${subdomain} to Mailjet.`,
+  bird: (subdomain) => `We add ${subdomain} to Bird.`,
+  custom: (subdomain) => `${subdomain} receives with HelloBox.`,
 };
 
 function SubdomainDialog({ connection, data, parent, onClose, onShowRecords, refresh }: {
@@ -434,6 +450,8 @@ function replyToSnippet(provider: ProviderKind, parent: string, address: string)
 }));`;
     case "demo":
       return `// Sign up free to receive replies on your own domain.`;
+    default:
+      return `// Set the Reply-To header to "${address}" when you send.`;
   }
 }
 

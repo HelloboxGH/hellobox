@@ -29,7 +29,7 @@ export function resendHeaders(headers: Record<string, string> | undefined) {
 export class ResendProvider implements MailProvider {
   readonly kind = "resend" as const;
   // Resend tells us about domain changes through its dashboard flow.
-  readonly capabilities = { backfill: true, refreshDomains: false };
+  readonly capabilities = { receiving: true, backfill: true, refreshDomains: false };
 
   constructor(readonly client: ResendClient) {}
 

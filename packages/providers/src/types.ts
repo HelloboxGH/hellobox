@@ -1,16 +1,39 @@
-export type ProviderKind = "resend" | "ses" | "postmark" | "mailgun" | "demo";
+export type ProviderKind =
+  | "resend"
+  | "ses"
+  | "postmark"
+  | "mailgun"
+  | "demo"
+  | "smtp"
+  | "sendgrid"
+  | "brevo"
+  | "mailersend"
+  | "mailjet"
+  | "bird"
+  | "custom";
 
 export const PROVIDER_INFO: Record<ProviderKind, {
   name: string;
   // HelloBox turns receiving on and off from settings. Resend's is set in its dashboard.
   receivingInHelloBox: boolean;
+  // The provider can receive mail for us. Without it, a connection only sends, and its
+  // domains receive with HelloBox.
+  receives: boolean;
 }> = {
-  ses: { name: "Amazon SES", receivingInHelloBox: true },
-  resend: { name: "Resend", receivingInHelloBox: false },
-  postmark: { name: "Postmark", receivingInHelloBox: true },
-  mailgun: { name: "Mailgun", receivingInHelloBox: true },
+  ses: { name: "Amazon SES", receivingInHelloBox: true, receives: true },
+  resend: { name: "Resend", receivingInHelloBox: false, receives: true },
+  postmark: { name: "Postmark", receivingInHelloBox: true, receives: true },
+  mailgun: { name: "Mailgun", receivingInHelloBox: true, receives: true },
   // The public demo sandbox. Never offered as a choice.
-  demo: { name: "HelloBox demo", receivingInHelloBox: false },
+  demo: { name: "HelloBox demo", receivingInHelloBox: false, receives: true },
+  // Not built yet: plans/PROVIDERS.md. Each says whether it will receive.
+  smtp: { name: "SMTP", receivingInHelloBox: true, receives: false },
+  sendgrid: { name: "SendGrid", receivingInHelloBox: true, receives: true },
+  brevo: { name: "Brevo", receivingInHelloBox: true, receives: true },
+  mailersend: { name: "MailerSend", receivingInHelloBox: true, receives: true },
+  mailjet: { name: "Mailjet", receivingInHelloBox: true, receives: true },
+  bird: { name: "Bird", receivingInHelloBox: true, receives: true },
+  custom: { name: "Custom provider", receivingInHelloBox: true, receives: false },
 };
 
 export interface ProviderDomain {
@@ -111,6 +134,9 @@ export interface InboundPage {
 
 // What the maintenance job may do for a connection.
 export interface ProviderCapabilities {
+  // The provider receives mail and fetchInbound reads it. False for a connection that only
+  // sends: its domains receive with HelloBox, whose mail ingest reads from our storage.
+  receiving: boolean;
   // listInbound can find mail a webhook missed.
   backfill: boolean;
   // Domains change status in the background, so they're synced on a schedule.
@@ -122,9 +148,10 @@ export interface MailProvider {
   readonly capabilities: ProviderCapabilities;
   listDomains(): Promise<ProviderDomain[]>;
   send(message: OutgoingMessage, idempotencyKey: string): Promise<SentMessage>;
-  fetchInbound(id: string, hint?: InboundHint): Promise<InboundEmail>;
+  // Both left out by a provider that doesn't receive.
+  fetchInbound?(id: string, hint?: InboundHint): Promise<InboundEmail>;
   // Newest first. Backfill walks pages until it finds only mail it already has.
-  listInbound(next?: string): Promise<InboundPage>;
+  listInbound?(next?: string): Promise<InboundPage>;
   // Runs once an email is safely stored, for providers that hold a copy for us.
   afterIngest?(id: string): Promise<void>;
   // Asks the provider to send mail again that failed every webhook attempt. Returns how

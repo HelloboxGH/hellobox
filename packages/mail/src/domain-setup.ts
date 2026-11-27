@@ -1,4 +1,5 @@
 import { domains, getDb } from "@hellobox/db";
+import { PROVIDER_INFO } from "@hellobox/providers";
 import { and, eq, isNull } from "drizzle-orm";
 import { loadConnection, syncDomains } from "./connections";
 import { subdomainProblem } from "./domain-names";
@@ -10,6 +11,7 @@ import {
   postmarkDomainSetup,
   setPostmarkReceiving,
 } from "./postmark";
+import { addSmtpDomain, smtpDomainSetup } from "./smtp";
 import { addResendReceivingDomain, applyResendDomainDns, resendDomainSetup, verifyResendDomain } from "./resend-domains";
 import {
   addSesDomain,
@@ -33,6 +35,7 @@ export async function addProviderDomain(connectionId: string, workspaceId: strin
   if (kind === "ses") return addSesDomain(connectionId, workspaceId, domain);
   if (kind === "postmark") return addPostmarkDomain(connectionId, workspaceId, domain);
   if (kind === "mailgun") return addMailgunDomain(connectionId, workspaceId, domain);
+  if (kind === "smtp") return addSmtpDomain(connectionId, workspaceId, domain);
   return addResendReceivingDomain(connectionId, workspaceId, domain);
 }
 
@@ -41,6 +44,7 @@ export async function providerDomainSetup(connectionId: string, workspaceId: str
   if (kind === "ses") return sesDomainSetup(connectionId, workspaceId, domain);
   if (kind === "postmark") return postmarkDomainSetup(connectionId, workspaceId, domain);
   if (kind === "mailgun") return mailgunDomainSetup(connectionId, workspaceId, domain);
+  if (kind === "smtp") return smtpDomainSetup(connectionId, workspaceId, domain);
   return resendDomainSetup(connectionId, workspaceId, domain);
 }
 
@@ -49,6 +53,8 @@ export async function applyProviderDomainDns(connectionId: string, workspaceId: 
   if (kind === "ses") return applySesDomainDns(connectionId, workspaceId, domain, host);
   if (kind === "postmark") return applyPostmarkDomainDns(connectionId, workspaceId, domain, host);
   if (kind === "mailgun") return applyMailgunDomainDns(connectionId, workspaceId, domain, host);
+  // Nothing to write: an SMTP server's records are set up wherever the server says.
+  if (kind === "smtp") return smtpDomainSetup(connectionId, workspaceId, domain);
   return applyResendDomainDns(connectionId, workspaceId, domain, host);
 }
 
@@ -103,6 +109,9 @@ export async function setupReceivingSubdomain(connectionId: string, workspaceId:
     .where(and(eq(domains.connectionId, connectionId), isNull(domains.removedAt)));
   if (!connected.some((domain) => domain.name === parent)) throw new Error(`${parent} isn't part of this connection`);
 
+  if (!PROVIDER_INFO[connection.provider].receives) {
+    throw new Error(`${PROVIDER_INFO[connection.provider].name} doesn't receive mail. Add ${subdomain} as a domain and turn on Receive with HelloBox.`);
+  }
   if (connection.provider === "ses") {
     const added = await addSesDomain(connectionId, workspaceId, subdomain);
     const receiving = connected.filter((domain) => domain.receivingEnabled).map((domain) => domain.name);

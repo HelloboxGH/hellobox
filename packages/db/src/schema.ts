@@ -201,7 +201,20 @@ export const connectionStatusEnum = pgEnum("connection_status", [
 ]);
 
 // "demo" is the public sandbox's own provider: see packages/mail/src/demo.
-export const providerKindEnum = pgEnum("provider_kind", ["resend", "ses", "postmark", "mailgun", "demo"]);
+export const providerKindEnum = pgEnum("provider_kind", [
+  "resend",
+  "ses",
+  "postmark",
+  "mailgun",
+  "demo",
+  "smtp",
+  "sendgrid",
+  "brevo",
+  "mailersend",
+  "mailjet",
+  "bird",
+  "custom",
+]);
 
 export interface ConnectionConfig {
   // SES: where the customer's stack lives and the role we assume there.
@@ -232,6 +245,14 @@ export interface ConnectionConfig {
   mailgun?: {
     region: "us" | "eu";
     routes: Record<string, string>;
+  };
+  // SMTP: the server and who signs in. The password is in accessTokenEnc. The server can't
+  // list domains, so these are the ones the customer added.
+  smtp?: {
+    host: string;
+    port: 465 | 587 | 2525 | 25;
+    username: string;
+    domains: string[];
   };
 }
 

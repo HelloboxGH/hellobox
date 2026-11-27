@@ -348,7 +348,7 @@ export class PostmarkProvider implements MailProvider {
   readonly kind = "postmark" as const;
   // Inbound mail waits in our storage until it's ingested, and domains verify in the
   // background after DNS changes.
-  readonly capabilities = { backfill: true, refreshDomains: true };
+  readonly capabilities = { receiving: true, backfill: true, refreshDomains: true };
   readonly account: PostmarkAccount;
   readonly server: PostmarkServerApi;
   private readonly stored: StoredInbound;
