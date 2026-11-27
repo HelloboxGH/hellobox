@@ -22,6 +22,7 @@ export * from "./plans";
 export * from "./postmark";
 export * from "./pushed";
 export * from "./mx";
+export * from "./receiving-dns";
 export * from "./quarantine";
 export * from "./realtime";
 export * from "./recipients";

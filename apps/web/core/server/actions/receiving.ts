@@ -1,5 +1,9 @@
 import {
+  addHelloboxTxtToCloudflare,
+  cloudflareStatus,
   confirmHelloboxReceiving,
+  pointMxToHellobox,
+  removeHelloboxMxFromCloudflare,
   ReceivingError,
   startHelloboxReceiving,
   stopHelloboxReceiving,
@@ -22,7 +26,12 @@ const explained = async <T>(run: () => Promise<T>) => {
 
 export const startReceiving = adminAction("/domains/receiving/start")
   .input(z.object({ domainId: z.string() }))
-  .handler(({ input, ctx }) => explained(() => startHelloboxReceiving(ctx.workspace.id, input.domainId)));
+  .handler(({ input, ctx }) =>
+    explained(async () => {
+      const setup = await startHelloboxReceiving(ctx.workspace.id, input.domainId);
+      return { ...setup, cloudflare: await cloudflareStatus(ctx.workspace.id, setup.mx.name) };
+    }),
+  );
 
 export const confirmReceiving = adminAction("/domains/receiving/confirm")
   .input(z.object({ domainId: z.string() }))
@@ -35,7 +44,25 @@ export const stopReceiving = adminAction("/domains/receiving/stop")
     return { ok: true };
   });
 
+// The same records written to Cloudflare, when the workspace connected it. Failures come back
+// as a message, and the records can still be added by hand.
+export const receivingCloudflareTxt = adminAction("/domains/receiving/cloudflare-txt")
+  .input(z.object({ domainId: z.string() }))
+  .handler(({ input, ctx }) => explained(() => addHelloboxTxtToCloudflare(ctx.workspace.id, input.domainId)));
+
+// Without replace, other MX records on the name are only reported, never touched.
+export const receivingCloudflareMx = adminAction("/domains/receiving/cloudflare-mx")
+  .input(z.object({ domainId: z.string(), replace: z.boolean().optional() }))
+  .handler(({ input, ctx }) => explained(() => pointMxToHellobox(ctx.workspace.id, input.domainId, input.replace ?? false)));
+
+export const receivingCloudflareRemoveMx = adminAction("/domains/receiving/cloudflare-remove-mx")
+  .input(z.object({ domainId: z.string() }))
+  .handler(({ input, ctx }) => explained(() => removeHelloboxMxFromCloudflare(ctx.workspace.id, input.domainId)));
+
 export const receivingActions = {
+  "/domains/receiving/cloudflare-txt": receivingCloudflareTxt,
+  "/domains/receiving/cloudflare-mx": receivingCloudflareMx,
+  "/domains/receiving/cloudflare-remove-mx": receivingCloudflareRemoveMx,
   "/domains/receiving/start": startReceiving,
   "/domains/receiving/confirm": confirmReceiving,
   "/domains/receiving/stop": stopReceiving,

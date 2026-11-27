@@ -8,11 +8,21 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogPanel, DialogPopup, DialogTitle } from "@/components/ui/dialog";
 import { type Bootstrap, call } from "@/core/client/api";
 import { notify, notifyInfo } from "@/core/client/notify";
+import { CloudflareIcon } from "@/components/brand-icons";
 import { CopyValue } from "./dns-records";
 import { useRunning } from "./shared";
 
 type Domain = Bootstrap["domains"][number];
-type Setup = { record: { name: string; value: string }; mx: { name: string; value: string; priority: number } };
+type Setup = {
+  record: { name: string; value: string };
+  mx: { name: string; value: string; priority: number };
+  cloudflare: { onCloudflare: boolean; connected: boolean };
+};
+type OtherMx = { value: string; priority: number };
+
+const CHECK_TRIES = 6;
+const CHECK_EVERY_MS = 5000;
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 // Receiving a domain's mail with HelloBox's own mail server instead of the provider. The
 // order matters: the domain is turned on here first (proven with a TXT record), and only
@@ -39,6 +49,42 @@ function Steps({ domain, onClose, refresh }: { domain: Domain; onClose: () => vo
   const [checking, runCheck] = useRunning();
   const [stopping, runStop] = useRunning();
   const [confirmStop, setConfirmStop] = useState(false);
+  const [writingTxt, runTxt] = useRunning();
+  const [writingMx, runMx] = useRunning();
+  const [removingMx, runRemoveMx] = useRunning();
+  // MX records already on the domain, waiting for the user to agree they get replaced.
+  const [replacing, setReplacing] = useState<OtherMx[] | null>(null);
+  const [mxDone, setMxDone] = useState(false);
+  const withCloudflare = Boolean(setup?.cloudflare.connected && setup.cloudflare.onCloudflare);
+
+  // DNS takes a moment to show a new record, so the check is tried a few times.
+  async function confirmWithRetries() {
+    for (let attempt = 0; attempt < CHECK_TRIES; attempt++) {
+      if (attempt) await sleep(CHECK_EVERY_MS);
+      const result = await call("/domains/receiving/confirm", { domainId: domain.id });
+      if (result.on) return true;
+    }
+    return false;
+  }
+
+  function turnedOn() {
+    setOn(true);
+    notify(`HelloBox now receives ${domain.name}. Point its MX record here next.`);
+    refresh();
+  }
+
+  async function mx(replace: boolean) {
+    await runMx(async () => {
+      const result = await call("/domains/receiving/cloudflare-mx", { domainId: domain.id, replace });
+      if (result.status === "needs-confirmation") {
+        setReplacing(result.existing);
+        return;
+      }
+      setReplacing(null);
+      setMxDone(true);
+      notify(result.status === "already" ? "The MX record already points at HelloBox" : "The MX record now points at HelloBox");
+    });
+  }
 
   // The records come from the server, which makes the TXT token on first use.
   useEffect(() => {
@@ -56,6 +102,26 @@ function Steps({ domain, onClose, refresh }: { domain: Domain; onClose: () => vo
             their mail once receiving is off here.
           </DialogDescription>
         </DialogHeader>
+        {withCloudflare && (
+          <DialogPanel>
+            <p className="text-muted-foreground text-xs">
+              Restore your provider&apos;s MX record in Cloudflare first (we don&apos;t keep what was there before). Then take HelloBox&apos;s record off.
+            </p>
+            <Button
+              variant="outline"
+              className="mt-2"
+              loading={removingMx}
+              onClick={() =>
+                runRemoveMx(async () => {
+                  const result = await call("/domains/receiving/cloudflare-remove-mx", { domainId: domain.id });
+                  notify(result.removed ? "HelloBox's MX record was removed" : "HelloBox's MX record wasn't there");
+                })
+              }
+            >
+              <CloudflareIcon className="text-[#F38020]" /> Remove HelloBox&apos;s MX record
+            </Button>
+          </DialogPanel>
+        )}
         <DialogFooter>
           <Button variant="ghost" onClick={() => setConfirmStop(false)}>Back</Button>
           <Button
@@ -91,6 +157,23 @@ function Steps({ domain, onClose, refresh }: { domain: Domain; onClose: () => vo
             <Step number={1} title="Prove you control the domain" done={on}>
               <p className="text-muted-foreground text-xs">Add this TXT record where the domain&apos;s DNS is managed. It can stay there afterwards.</p>
               <Record type="TXT" rows={[["Name", setup.record.name], ["Value", setup.record.value]]} />
+              {withCloudflare && !on && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  loading={writingTxt || checking}
+                  onClick={() =>
+                    runTxt(async () => {
+                      await call("/domains/receiving/cloudflare-txt", { domainId: domain.id });
+                      notifyInfo("Added to Cloudflare. Checking it now…");
+                      if (await confirmWithRetries()) await turnedOn();
+                      else notifyInfo("The record is in Cloudflare but isn't visible yet. Try \"Check and turn on\" in a minute.");
+                    })
+                  }
+                >
+                  <CloudflareIcon className="text-[#F38020]" /> Add it to Cloudflare
+                </Button>
+              )}
             </Step>
             <Step number={2} title="Turn it on" done={on}>
               <p className="text-muted-foreground text-xs">
@@ -104,6 +187,32 @@ function Steps({ domain, onClose, refresh }: { domain: Domain; onClose: () => vo
                 Replace the domain&apos;s MX records with this one. Any other MX record left in place gets part of the mail.
               </p>
               <Record type="MX" rows={[["Name", setup.mx.name], ["Value", setup.mx.value], ["Priority", String(setup.mx.priority)]]} />
+              {withCloudflare && (
+                <>
+                  <Button variant="outline" size="sm" disabled={!on || mxDone || replacing !== null} loading={writingMx && replacing === null} onClick={() => mx(false)}>
+                    <CloudflareIcon className="text-[#F38020]" /> Point MX to HelloBox on Cloudflare
+                  </Button>
+                  {replacing && (
+                    <Alert variant="warning" className="rounded-xl">
+                      <Warning />
+                      <AlertDescription className="space-y-2">
+                        <span className="block">
+                          {domain.name} already has MX records. Replacing them means mail stops going there (for example Google Workspace or your provider&apos;s inbound):
+                        </span>
+                        <span className="block font-mono text-xs">
+                          {replacing.map((item) => (
+                            <span key={`${item.priority}:${item.value}`} className="block break-all">{item.priority} {item.value}</span>
+                          ))}
+                        </span>
+                        <span className="flex gap-2">
+                          <Button size="sm" variant="destructive" loading={writingMx} onClick={() => mx(true)}>Replace them</Button>
+                          <Button size="sm" variant="ghost" onClick={() => setReplacing(null)}>Keep them</Button>
+                        </span>
+                      </AlertDescription>
+                    </Alert>
+                  )}
+                </>
+              )}
               {!on && (
                 <Alert variant="warning" className="rounded-xl">
                   <Warning />
@@ -139,9 +248,7 @@ function Steps({ domain, onClose, refresh }: { domain: Domain; onClose: () => vo
                     notifyInfo("We can't see the TXT record yet. DNS changes can take a few minutes, so try again shortly.");
                     return;
                   }
-                  setOn(true);
-                  notify(`HelloBox now receives ${domain.name}. Point its MX record here next.`);
-                  refresh();
+                  await turnedOn();
                 })
               }
             >

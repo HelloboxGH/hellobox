@@ -98,7 +98,7 @@ export async function revokeCloudflareToken(token: string) {
   });
 }
 
-interface CloudflareRecord {
+export interface CloudflareRecord {
   id: string;
   type: string;
   content: string;
@@ -138,6 +138,33 @@ export class CloudflareDns {
       if (zones[0]) return zones[0].id;
     }
     return null;
+  }
+
+  // The records of one type on exactly this name (not its parent), or null without a zone.
+  async recordsAt(domain: string, type: DnsRecord["type"], name: string) {
+    const zone = await this.findZone(domain);
+    if (!zone) return null;
+    const records = await this.request<CloudflareRecord[]>(
+      `/zones/${zone}/dns_records?type=${type}&name=${encodeURIComponent(name)}&per_page=100`,
+    );
+    return { zone, records };
+  }
+
+  async createRecord(zone: string, record: DnsRecord) {
+    await this.request(`/zones/${zone}/dns_records`, {
+      method: "POST",
+      body: JSON.stringify({
+        type: record.type,
+        name: record.name,
+        content: record.value,
+        ttl: 1,
+        ...(record.priority !== undefined ? { priority: record.priority } : {}),
+      }),
+    });
+  }
+
+  async deleteRecord(zone: string, id: string) {
+    await this.request(`/zones/${zone}/dns_records/${id}`, { method: "DELETE" });
   }
 
   // Adds or updates each record, the same way Route 53 is handled.
