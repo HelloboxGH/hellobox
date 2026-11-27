@@ -2,6 +2,8 @@ import { decrypt, encrypt } from "@hellobox/config";
 import { connections, domains, getDb } from "@hellobox/db";
 import { getExtensions } from "@hellobox/extensions";
 import {
+  BrevoProvider,
+  isBrevoAuthError,
   isMailgunAuthError,
   isPostmarkAuthError,
   isSendgridAuthError,
@@ -134,6 +136,17 @@ export function sendgridProviderFor(connection: Connection) {
   });
 }
 
+export function brevoProviderFor(connection: Connection) {
+  const { brevo } = connection.config;
+  if (!brevo || !connection.accessTokenEnc) throw new Error("This Brevo connection hasn't finished connecting");
+  return new BrevoProvider({
+    workspaceId: connection.workspaceId,
+    connectionId: connection.id,
+    apiKey: decrypt(connection.accessTokenEnc),
+    inbound: brevo.inbound,
+  });
+}
+
 export function smtpProviderFor(connection: Connection) {
   const { smtp } = connection.config;
   if (!smtp || !connection.accessTokenEnc) throw new Error("This SMTP connection hasn't finished connecting");
@@ -157,6 +170,8 @@ export function providerFor(connection: Connection): MailProvider {
       return smtpProviderFor(connection);
     case "sendgrid":
       return sendgridProviderFor(connection);
+    case "brevo":
+      return brevoProviderFor(connection);
     default: {
       // A kind cloud implements (the public demo's).
       const make = getExtensions().mail?.providers?.[connection.provider];
@@ -190,6 +205,9 @@ export async function tearDownConnection(connection: Connection) {
         return;
       case "sendgrid":
         if (connection.status === "active") await sendgridProviderFor(connection).disconnect(connection.webhookId);
+        return;
+      case "brevo":
+        if (connection.status === "active") await brevoProviderFor(connection).disconnect(connection.webhookId);
         return;
       // Nothing was set up at the server.
       case "smtp":
@@ -225,6 +243,7 @@ export function grantErrorProvider(error: unknown): ProviderKind | null {
   if (isMailgunAuthError(error)) return "mailgun";
   if (isSmtpAuthError(error)) return "smtp";
   if (isSendgridAuthError(error)) return "sendgrid";
+  if (isBrevoAuthError(error)) return "brevo";
   if (error instanceof OAuthGrantError) return "resend";
   // "Access token is missing required scopes: full_access", or a token Resend no longer knows.
   if (error instanceof ResendApiError && (error.status === 401 || (error.status === 403 && /scope/i.test(error.message)))) {

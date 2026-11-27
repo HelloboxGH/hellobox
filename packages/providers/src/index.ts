@@ -12,3 +12,4 @@ export * from "./ses/sns";
 export * from "./types";
 export * from "./smtp";
 export * from "./sendgrid";
+export * from "./brevo";

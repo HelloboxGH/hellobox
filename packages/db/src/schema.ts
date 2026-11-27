@@ -255,6 +255,14 @@ export interface ConnectionConfig {
     // False when SendGrid wouldn't take another events webhook (its plans cap them).
     events: boolean;
   };
+  // Brevo: each receiving domain with the id of our inbound webhook for it. The API key is
+  // in accessTokenEnc, the events webhook's id in webhookId, and the token both webhooks
+  // carry (Brevo doesn't sign them) in webhookSecretEnc.
+  brevo?: {
+    inbound: Record<string, string>;
+    // False when Brevo wouldn't take the events webhook.
+    events: boolean;
+  };
   // SMTP: the server and who signs in. The password is in accessTokenEnc. The server can't
   // list domains, so these are the ones the customer added.
   smtp?: {

@@ -1,7 +1,7 @@
 # Connect your email provider
 
 HelloBox doesn't send or receive email by itself. It works through your account at an email
-provider: Postmark, Mailgun, Resend, Amazon SES, SendGrid, or any SMTP server. Your mail keeps going through that
+provider: Postmark, Mailgun, Resend, Amazon SES, SendGrid, Brevo, or any SMTP server. Your mail keeps going through that
 account, under your name and reputation; HelloBox shows it to your team and sends the
 replies.
 
@@ -49,6 +49,7 @@ If you already send with one of these, use it. If you're choosing:
 | **Resend** | Medium. Register an app once with one command, then sign in. | Domains and receiving are managed in Resend's own dashboard. |
 | **Amazon SES** | The most work: about 30 minutes in AWS, once. | The cheapest at volume. New accounts start in a *sandbox* and need AWS's approval to send to anyone. |
 | **SendGrid** | Easy. Paste one key. | Receives for many domains. Each receiving domain's MX points at SendGrid. The free plan allows one events webhook. |
+| **Brevo** | Easy. Paste one key. | Receives best on a subdomain, like `reply.example.com`. Attachments of received mail are fetched from Brevo. |
 | **SMTP** | Easy. A server, a username and a password. | Only sends, so it needs HelloBox's own mail server to receive. Sent mail shows *Sent*, never *Delivered*, and campaigns aren't available. |
 
 You can connect more than one provider to a workspace later.
@@ -417,6 +418,27 @@ without one and HelloBox says so. Free one in SendGrid, then **Connect again**.
 SendGrid keeps no copy of received mail, so HelloBox must be reachable when it arrives. SendGrid
 retries for up to three days.
 
+## Brevo
+
+**What you need:** a Brevo account and an **API key** (not an SMTP key).
+
+1. In Brevo, open **SMTP & API → API Keys → Generate a new API key**, and copy it.
+2. In HelloBox, open **Settings → Domains → Connect a provider → Brevo**, paste the key and
+   press **Connect**.
+3. Your Brevo domains appear. **Add domain** adds a new one; add the records HelloBox shows,
+   then **Check again** so Brevo authenticates it.
+4. To receive, Brevo recommends a subdomain you don't send from, like `reply.example.com`. Use
+   **Receive on a subdomain**, or turn on **Receiving** on a domain. HelloBox adds an inbound
+   webhook for it and shows the two MX records (`inbound1.sendinblue.com` and
+   `inbound2.sendinblue.com`).
+
+HelloBox also adds a delivery events webhook, so sent mail shows *Delivered*, bounces and spam
+reports. Brevo doesn't sign its webhooks: each one carries a long secret token of the
+connection's instead.
+
+Brevo writes its own Message-ID on mail it sends, and HelloBox keeps it, so replies still
+thread. Brevo keeps no copy of received mail, so HelloBox must be reachable when it arrives.
+
 ## SMTP
 
 **What you need:** an SMTP server you can send through with a username and password, such as
@@ -444,7 +466,7 @@ If the password changes, the connection shows **Connect again**.
 ## Set up your domains
 
 After you connect, **Settings → Domains** lists the domains in your provider account. For
-Postmark, Mailgun, SES and SendGrid, **Add domain** adds a new one; for Resend, add it in Resend. For
+Postmark, Mailgun, SES, SendGrid and Brevo, **Add domain** adds a new one; for Resend, add it in Resend. For
 SMTP, add each domain you send from.
 
 ### Add the DNS records
@@ -511,6 +533,7 @@ address private.
 | Resend | `/api/webhooks/resend/<connection>` |
 | Amazon SES | `/api/webhooks/ses/<connection>/inbound` and `/events` |
 | SendGrid | `/api/webhooks/sendgrid/<connection>/inbound` and `/events` |
+| Brevo | `/api/webhooks/brevo/<connection>/inbound` and `/events` |
 
 If you change `APP_URL` later, your provider still calls the old addresses: press
 **Reconnect** (or **Connect again**) on each connection.

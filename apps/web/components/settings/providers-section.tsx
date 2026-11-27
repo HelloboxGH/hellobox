@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowSquareOut, Check, EnvelopeSimple, HourglassMedium, PaperPlaneTilt, Plus, Warning } from "@phosphor-icons/react";
+import { ArrowSquareOut, Check, EnvelopeSimple, HourglassMedium, Mailbox, PaperPlaneTilt, Plus, Warning } from "@phosphor-icons/react";
 import { type FormEvent, useCallback, useEffect, useState } from "react";
 import { SES_REGIONS, stackConsoleUrl, type SesRegion } from "@hellobox/providers/connect";
 import { PROVIDER_INFO, type ProviderKind } from "@hellobox/providers/types";
@@ -86,6 +86,11 @@ export function ProvidersSection({ data, refresh, admin }: { data: Bootstrap; re
     const broken = data.connections.find((c) => c.provider === "mailgun" && c.status === "needs_reconnect");
     return { reconnectId: broken?.id };
   });
+  const [brevo, setBrevo] = useState<{ reconnectId?: string } | null>(() => {
+    if (requested !== "brevo" || !admin) return null;
+    const broken = data.connections.find((c) => c.provider === "brevo" && c.status === "needs_reconnect");
+    return { reconnectId: broken?.id };
+  });
   const [sendgrid, setSendgrid] = useState<{ reconnectId?: string } | null>(() => {
     if (requested !== "sendgrid" || !admin) return null;
     const broken = data.connections.find((c) => c.provider === "sendgrid" && c.status === "needs_reconnect");
@@ -109,7 +114,7 @@ export function ProvidersSection({ data, refresh, admin }: { data: Bootstrap; re
     // Its domains receive with HelloBox, so only where this HelloBox runs a mail server.
     smtp: data.helloboxMx ? "ready" : "hidden",
     sendgrid: "ready",
-    brevo: "hidden",
+    brevo: "ready",
     mailersend: "hidden",
     mailjet: "hidden",
     bird: "hidden",
@@ -123,6 +128,7 @@ export function ProvidersSection({ data, refresh, admin }: { data: Bootstrap; re
     else if (kind === "mailgun") setMailgun({});
     else if (kind === "smtp") setSmtp({});
     else if (kind === "sendgrid") setSendgrid({});
+    else if (kind === "brevo") setBrevo({});
     // An API route that redirects to Resend, so a full page load.
     else if (kind === "resend") window.location.assign(new URL(connectHref, window.location.origin));
   }
@@ -176,6 +182,15 @@ export function ProvidersSection({ data, refresh, admin }: { data: Bootstrap; re
             refresh={refresh}
             admin={admin}
             onReconnect={() => setSendgrid({ reconnectId: connection.id })}
+          />
+        ) : connection.provider === "brevo" ? (
+          <BrevoConnection
+            key={connection.id}
+            connection={connection}
+            data={data}
+            refresh={refresh}
+            admin={admin}
+            onReconnect={() => setBrevo({ reconnectId: connection.id })}
           />
         ) : connection.provider === "smtp" ? (
           <SmtpConnection
@@ -235,6 +250,12 @@ export function ProvidersSection({ data, refresh, admin }: { data: Bootstrap; re
         open={sendgrid !== null}
         reconnectId={sendgrid?.reconnectId}
         onOpenChange={(open) => !open && setSendgrid(null)}
+        refresh={refresh}
+      />
+      <BrevoConnectDialog
+        open={brevo !== null}
+        reconnectId={brevo?.reconnectId}
+        onOpenChange={(open) => !open && setBrevo(null)}
         refresh={refresh}
       />
       <SmtpConnectDialog
@@ -1231,6 +1252,87 @@ function SendgridConnection({ connection, data, refresh, admin, onReconnect }: {
           refresh={refresh}
           canAdd
           emptyText="No authenticated domains in SendGrid yet. Add one to send and receive from it."
+          receiving={(domain) => ({ on: domain.receivingEnabled })}
+          setReceiving={setReceiving}
+        />
+      )}
+    </div>
+  );
+}
+
+function BrevoConnectDialog({ open, onOpenChange, reconnectId, refresh }: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  reconnectId?: string;
+  refresh: () => void;
+}) {
+  const run = useRun();
+
+  async function connect(values: Record<string, string>) {
+    let events = true;
+    const done = await run(async () => {
+      events = (await call("/connections/brevo/connect", { apiKey: values.apiKey ?? "", connectionId: reconnectId })).events;
+    });
+    if (!done) return;
+    if (events) notify(reconnectId ? "Brevo is connected again" : "Brevo is connected");
+    else notifyInfo("Brevo is connected, without delivery events: Brevo wouldn't add the webhook. Sent mail shows Sent, not Delivered.");
+    refresh();
+    onOpenChange(false);
+  }
+
+  return <PasteKeyDialog provider={PASTE_KEY_PROVIDERS.brevo} open={open} onOpenChange={onOpenChange} onSubmit={connect} />;
+}
+
+function BrevoConnection({ connection, data, refresh, admin, onReconnect }: {
+  connection: Connection;
+  data: Bootstrap;
+  refresh: () => void;
+  admin: boolean;
+  onReconnect: () => void;
+}) {
+  const run = useRun();
+
+  async function setReceiving(domain: string, on: boolean) {
+    return (await call("/connections/brevo/receiving", { connectionId: connection.id, domain, on })).mx;
+  }
+
+  return (
+    <div className="space-y-3 rounded-2xl border p-3">
+      <ProviderRow icon={<Mailbox className="size-5 text-success" />} name="Brevo" status={connection.status}>
+        {admin && connection.status === "needs_reconnect" && <Button size="sm" onClick={onReconnect}>Connect again</Button>}
+        {admin && (
+          <DisconnectButton
+            title="Disconnect Brevo?"
+            description="New mail stops arriving and sending stops. Your existing mail stays here. We remove our webhooks from Brevo; your domains stay there."
+            onConfirm={async () => {
+              await run(() => call("/connections/disconnect", { id: connection.id }), "Disconnected");
+              refresh();
+            }}
+          />
+        )}
+      </ProviderRow>
+
+      {connection.status === "needs_reconnect" && (
+        <Alert variant="warning" className="rounded-xl">
+          <Warning />
+          <AlertDescription>Brevo stopped accepting the API key, so it was probably deleted. Connect again with a new key.</AlertDescription>
+        </Alert>
+      )}
+      {connection.status === "active" && connection.brevoEvents === false && (
+        <Alert variant="info" className="rounded-xl">
+          <Warning />
+          <AlertDescription>No delivery events: Brevo wouldn&apos;t add the webhook. Sent mail shows Sent, not Delivered. Connect again to retry.</AlertDescription>
+        </Alert>
+      )}
+
+      {connection.status === "active" && (
+        <DomainList
+          connection={connection}
+          data={data}
+          admin={admin}
+          refresh={refresh}
+          canAdd
+          emptyText="No domains in Brevo yet. Add one to send and receive from it."
           receiving={(domain) => ({ on: domain.receivingEnabled })}
           setReceiving={setReceiving}
         />

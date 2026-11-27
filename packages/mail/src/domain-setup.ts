@@ -12,6 +12,7 @@ import {
   setPostmarkReceiving,
 } from "./postmark";
 import { addSmtpDomain, smtpDomainSetup } from "./smtp";
+import { addBrevoDomain, applyBrevoDomainDns, brevoDomainSetup, setBrevoReceiving } from "./brevo";
 import { addSendgridDomain, applySendgridDomainDns, sendgridDomainSetup, setSendgridReceiving } from "./sendgrid";
 import { addResendReceivingDomain, applyResendDomainDns, resendDomainSetup, verifyResendDomain } from "./resend-domains";
 import {
@@ -38,6 +39,7 @@ export async function addProviderDomain(connectionId: string, workspaceId: strin
   if (kind === "mailgun") return addMailgunDomain(connectionId, workspaceId, domain);
   if (kind === "smtp") return addSmtpDomain(connectionId, workspaceId, domain);
   if (kind === "sendgrid") return addSendgridDomain(connectionId, workspaceId, domain);
+  if (kind === "brevo") return addBrevoDomain(connectionId, workspaceId, domain);
   return addResendReceivingDomain(connectionId, workspaceId, domain);
 }
 
@@ -48,6 +50,7 @@ export async function providerDomainSetup(connectionId: string, workspaceId: str
   if (kind === "mailgun") return mailgunDomainSetup(connectionId, workspaceId, domain);
   if (kind === "smtp") return smtpDomainSetup(connectionId, workspaceId, domain);
   if (kind === "sendgrid") return sendgridDomainSetup(connectionId, workspaceId, domain);
+  if (kind === "brevo") return brevoDomainSetup(connectionId, workspaceId, domain);
   return resendDomainSetup(connectionId, workspaceId, domain);
 }
 
@@ -59,6 +62,7 @@ export async function applyProviderDomainDns(connectionId: string, workspaceId: 
   // Nothing to write: an SMTP server's records are set up wherever the server says.
   if (kind === "smtp") return smtpDomainSetup(connectionId, workspaceId, domain);
   if (kind === "sendgrid") return applySendgridDomainDns(connectionId, workspaceId, domain, host);
+  if (kind === "brevo") return applyBrevoDomainDns(connectionId, workspaceId, domain, host);
   return applyResendDomainDns(connectionId, workspaceId, domain, host);
 }
 
@@ -74,6 +78,8 @@ export async function refreshProviderDomain(connectionId: string, workspaceId: s
   if (kind === "mailgun") await mailgunDomainSetup(connectionId, workspaceId, domain);
   // Reading the records asks SendGrid to validate again.
   if (kind === "sendgrid") await sendgridDomainSetup(connectionId, workspaceId, domain);
+  // And Brevo to authenticate.
+  if (kind === "brevo") await brevoDomainSetup(connectionId, workspaceId, domain);
   if (kind === "resend") await verifyResendDomain(connectionId, workspaceId, domain);
   await syncDomains(connectionId, workspaceId, await domainLimitFor(workspaceId));
   const [row] = await getDb()
@@ -143,6 +149,11 @@ export async function setupReceivingSubdomain(connectionId: string, workspaceId:
   if (connection.provider === "sendgrid") {
     const added = await addSendgridDomain(connectionId, workspaceId, subdomain);
     const result = await setSendgridReceiving(connectionId, workspaceId, subdomain, true);
+    return { setup: combine(added, result.mx), waiting: false };
+  }
+  if (connection.provider === "brevo") {
+    const added = await addBrevoDomain(connectionId, workspaceId, subdomain);
+    const result = await setBrevoReceiving(connectionId, workspaceId, subdomain, true);
     return { setup: combine(added, result.mx), waiting: false };
   }
   return { setup: await addResendReceivingDomain(connectionId, workspaceId, subdomain), waiting: false };

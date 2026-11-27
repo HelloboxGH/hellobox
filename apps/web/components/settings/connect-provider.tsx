@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowSquareOut, CaretRight, ChatCircleDots, EnvelopeSimple, Key, PaperPlaneTilt } from "@phosphor-icons/react";
+import { ArrowSquareOut, CaretRight, ChatCircleDots, EnvelopeSimple, Key, Mailbox, PaperPlaneTilt } from "@phosphor-icons/react";
 import type { ProviderKind } from "@hellobox/providers/types";
 import { type FormEvent, type ReactNode, useState } from "react";
 import { AmazonSesIcon, MailgunIcon, PostmarkIcon, ResendIcon } from "@/components/brand-icons";
@@ -20,6 +20,7 @@ const CHOICES: { kind: ProviderKind; name: string; detail: string; icon: ReactNo
   { kind: "resend", name: "Resend", detail: "Sign in to Resend and allow access", icon: <ResendIcon className="size-4 text-foreground" /> },
   { kind: "postmark", name: "Postmark", detail: "Paste an account API token", icon: <PostmarkIcon className="size-5" /> },
   { kind: "mailgun", name: "Mailgun", detail: "Paste your API key and webhook signing key", icon: <MailgunIcon className="size-5 text-[#F06B66]" /> },
+  { kind: "brevo", name: "Brevo", detail: "Paste an API key", icon: <Mailbox className="size-5 text-success" /> },
   { kind: "sendgrid", name: "SendGrid", detail: "Paste an API key", icon: <PaperPlaneTilt className="size-5 text-info" /> },
   { kind: "smtp", name: "SMTP", detail: "A server, a username and a password", icon: <EnvelopeSimple className="size-5 text-muted-foreground" /> },
 ];
@@ -94,7 +95,7 @@ export interface KeyField {
 }
 
 export interface PasteKeyProvider {
-  kind: "postmark" | "mailgun" | "smtp" | "sendgrid";
+  kind: "postmark" | "mailgun" | "smtp" | "sendgrid" | "brevo";
   name: string;
   description: ReactNode;
   fields: KeyField[];
@@ -138,6 +139,21 @@ export const PASTE_KEY_PROVIDERS: Record<PasteKeyProvider["kind"], PasteKeyProvi
     ],
     link: { href: "https://app.mailgun.com/settings/api_security", label: "Open Mailgun API Security" },
     note: "We use them to set up receiving and read your domains. Your mail sends from your own Mailgun account.",
+  },
+  brevo: {
+    kind: "brevo",
+    name: "Brevo",
+    description: "Paste an API key. HelloBox sets up the delivery webhook and receiving with it.",
+    fields: [
+      {
+        name: "apiKey",
+        label: "API key",
+        placeholder: "xkeysib-xxxxxxxx",
+        help: "In Brevo, open SMTP & API, then API Keys, and generate a new API key. An SMTP key won't work here.",
+      },
+    ],
+    link: { href: "https://app.brevo.com/settings/keys/api", label: "Open Brevo API keys" },
+    note: "We use it to read your domains, set up receiving and get delivery events. Your mail sends from your own Brevo account.",
   },
   sendgrid: {
     kind: "sendgrid",

@@ -293,6 +293,8 @@ export const bootstrap = workspaceAction("/app/bootstrap").handler(async ({ ctx 
       // SendGrid: the EU host, and whether it has our events webhook.
       sendgridRegion: config.sendgrid?.region ?? null,
       sendgridEvents: config.sendgrid?.events ?? null,
+      // Brevo: whether it has our events webhook.
+      brevoEvents: config.brevo?.events ?? null,
     })),
     providers: { ses: isAwsBrokerConfigured(), cloudflare: isCloudflareConfigured() },
     // DNS hosts the workspace let us write records to.
