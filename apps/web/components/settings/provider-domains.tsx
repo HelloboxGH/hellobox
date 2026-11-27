@@ -273,7 +273,7 @@ const PROVIDER_STEP: Record<ProviderKind, (subdomain: string) => string> = {
   brevo: (subdomain) => `We add ${subdomain} to Brevo, with an inbound webhook that sends its mail to HelloBox.`,
   mailersend: (subdomain) => `We add ${subdomain} to MailerSend, with an inbound route that sends its mail to HelloBox.`,
   mailjet: (subdomain) => `We add ${subdomain} to Mailjet, with a parse route that sends its mail to HelloBox.`,
-  bird: (subdomain) => `We add ${subdomain} to Bird.`,
+  bird: (subdomain) => `We add ${subdomain} to Bird and turn on its receiving, once Bird sees the DKIM record.`,
   custom: (subdomain) => `${subdomain} receives with HelloBox.`,
 };
 

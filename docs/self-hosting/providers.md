@@ -1,7 +1,7 @@
 # Connect your email provider
 
 HelloBox doesn't send or receive email by itself. It works through your account at an email
-provider: Postmark, Mailgun, Resend, Amazon SES, SendGrid, Brevo, MailerSend, Mailjet, or any SMTP server. Your mail keeps going through that
+provider: Postmark, Mailgun, Resend, Amazon SES, SendGrid, Brevo, MailerSend, Mailjet, Bird, or any SMTP server. Your mail keeps going through that
 account, under your name and reputation; HelloBox shows it to your team and sends the
 replies.
 
@@ -52,6 +52,7 @@ If you already send with one of these, use it. If you're choosing:
 | **Brevo** | Easy. Paste one key. | Receives best on a subdomain, like `reply.example.com`. Attachments of received mail are fetched from Brevo. |
 | **MailerSend** | Easy. Paste one token. | Receives for many domains. Each domain needs its own events webhook, and plans cap them. Threading replies needs a paid plan. |
 | **Mailjet** | Easy. Paste two keys. | Receiving needs a paid Mailjet plan. Mailjet takes one events address per event type for the whole account. |
+| **Bird** | Easy. Paste one key. | Formerly SparkPost. Signed webhooks, and Bird keeps received mail for 30 days, so none is lost. Use a subdomain, like `mail.example.com`. |
 | **SMTP** | Easy. A server, a username and a password. | Only sends, so it needs HelloBox's own mail server to receive. Sent mail shows *Sent*, never *Delivered*, and campaigns aren't available. |
 
 You can connect more than one provider to a workspace later.
@@ -481,6 +482,24 @@ address per event type for the whole account: if one is already set, for another
 leaves it and says so. Mailjet signs neither its events nor received mail, so each address
 carries a long secret of the connection's.
 
+## Bird
+
+**What you need:** a Bird workspace and an **access key** with email and webhook access. Bird
+(bird.com) took over SparkPost; this is its new platform, not classic SparkPost.
+
+1. In Bird, open **Settings → API keys**, create a key with email and webhook access, and copy
+   it. Bird shows it once. HelloBox finds the region (US or EU) from the key.
+2. In HelloBox, open **Settings → Domains → Connect a provider → Bird**, paste the key and press
+   **Connect**.
+3. Your Bird domains appear. **Add domain** adds one; Bird suggests a subdomain, like
+   `mail.example.com`. Add the records HelloBox shows, then **Check again**.
+4. On each domain you want to receive on, turn on **Receiving** and add the MX record HelloBox
+   shows. Bird turns receiving on once it sees the domain's DKIM record; until then the domain
+   shows *Waiting*, and HelloBox keeps trying.
+
+HelloBox adds one signed webhook for delivery events and received mail. Bird keeps received
+mail for 30 days, so mail that arrives while HelloBox is down is picked up later.
+
 ## SMTP
 
 **What you need:** an SMTP server you can send through with a username and password, such as
@@ -508,7 +527,7 @@ If the password changes, the connection shows **Connect again**.
 ## Set up your domains
 
 After you connect, **Settings → Domains** lists the domains in your provider account. For
-Postmark, Mailgun, SES, SendGrid, Brevo, MailerSend and Mailjet, **Add domain** adds a new one; for Resend, add it in Resend. For
+Postmark, Mailgun, SES, SendGrid, Brevo, MailerSend, Mailjet and Bird, **Add domain** adds a new one; for Resend, add it in Resend. For
 SMTP, add each domain you send from.
 
 ### Add the DNS records
@@ -578,6 +597,7 @@ address private.
 | Brevo | `/api/webhooks/brevo/<connection>/inbound` and `/events` |
 | MailerSend | `/api/webhooks/mailersend/<connection>/inbound` and `/events` |
 | Mailjet | `/api/webhooks/mailjet/<connection>/inbound` and `/events` |
+| Bird | `/api/webhooks/bird/<connection>` |
 
 If you change `APP_URL` later, your provider still calls the old addresses: press
 **Reconnect** (or **Connect again**) on each connection.

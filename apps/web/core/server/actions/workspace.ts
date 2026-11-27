@@ -299,6 +299,10 @@ export const bootstrap = workspaceAction("/app/bootstrap").handler(async ({ ctx 
       mailersendEvents: config.mailersend?.events ?? null,
       // Mailjet: whether every event type has our callback.
       mailjetEvents: config.mailjet?.events ?? null,
+      // Bird: the region its key works on.
+      birdRegion: config.bird?.region ?? null,
+      // Bird: receiving asked for, waiting for the domain's DKIM.
+      birdPending: config.bird?.pending ?? [],
     })),
     providers: { ses: isAwsBrokerConfigured(), cloudflare: isCloudflareConfigured() },
     // DNS hosts the workspace let us write records to.

@@ -10,7 +10,7 @@ import {
 } from "@hellobox/db";
 import { isStorageConfigured } from "@hellobox/config";
 import { entitlementsFor, getExtensions } from "@hellobox/extensions";
-import { activatePendingPostmarkInbound, completeDueTakeovers, pruneSupportSessions, queueDueSupportWebhooks, markIfRoleRevoked, providerFor, syncDomains, workspacesWithPendingContacts } from "@hellobox/mail";
+import { activatePendingBirdReceiving, activatePendingPostmarkInbound, completeDueTakeovers, pruneSupportSessions, queueDueSupportWebhooks, markIfRoleRevoked, providerFor, syncDomains, workspacesWithPendingContacts } from "@hellobox/mail";
 import { abortMultipartUpload, deleteObject, deletePrefix, objectSize, workspacePrefixes } from "@hellobox/storage";
 import { and, eq, inArray, isNotNull, lt, or, sql } from "drizzle-orm";
 
@@ -180,6 +180,12 @@ export async function runMaintenance(
   for (const { connection } of withProviders.filter(({ connection }) => connection.config.postmark?.pendingInboundDomain)) {
     await activatePendingPostmarkInbound(connection.id).catch((error) => {
       console.error(`[maintenance] Couldn't turn on Postmark receiving for ${connection.id}:`, error);
+    });
+  }
+  // Receiving that waits for Bird to see the domain's DKIM.
+  for (const { connection } of withProviders.filter(({ connection }) => connection.config.bird?.pending?.length)) {
+    await activatePendingBirdReceiving(connection.id).catch((error) => {
+      console.error(`[maintenance] Couldn't turn on Bird receiving for ${connection.id}:`, error);
     });
   }
   for (const { connection } of withProviders.filter(({ provider }) => provider.capabilities.refreshDomains)) {

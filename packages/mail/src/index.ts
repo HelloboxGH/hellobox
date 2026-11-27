@@ -47,3 +47,4 @@ export * from "./sendgrid";
 export * from "./brevo";
 export * from "./mailersend";
 export * from "./mailjet";
+export * from "./bird";

@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowSquareOut, CaretRight, ChatCircleDots, EnvelopeSimple, Key, Mailbox, PaperPlane, PaperPlaneRight, PaperPlaneTilt } from "@phosphor-icons/react";
+import { ArrowSquareOut, CaretRight, ChatCircleDots, EnvelopeSimple, Bird, Key, Mailbox, PaperPlane, PaperPlaneRight, PaperPlaneTilt } from "@phosphor-icons/react";
 import type { ProviderKind } from "@hellobox/providers/types";
 import { type FormEvent, type ReactNode, useState } from "react";
 import { AmazonSesIcon, MailgunIcon, PostmarkIcon, ResendIcon } from "@/components/brand-icons";
@@ -20,6 +20,7 @@ const CHOICES: { kind: ProviderKind; name: string; detail: string; icon: ReactNo
   { kind: "resend", name: "Resend", detail: "Sign in to Resend and allow access", icon: <ResendIcon className="size-4 text-foreground" /> },
   { kind: "postmark", name: "Postmark", detail: "Paste an account API token", icon: <PostmarkIcon className="size-5" /> },
   { kind: "mailgun", name: "Mailgun", detail: "Paste your API key and webhook signing key", icon: <MailgunIcon className="size-5 text-[#F06B66]" /> },
+  { kind: "bird", name: "Bird", detail: "Paste an access key", icon: <Bird className="size-5 text-info" /> },
   { kind: "mailjet", name: "Mailjet", detail: "Paste two keys", icon: <PaperPlane className="size-5 text-warning" /> },
   { kind: "mailersend", name: "MailerSend", detail: "Paste an API token", icon: <PaperPlaneRight className="size-5 text-primary" /> },
   { kind: "brevo", name: "Brevo", detail: "Paste an API key", icon: <Mailbox className="size-5 text-success" /> },
@@ -97,7 +98,7 @@ export interface KeyField {
 }
 
 export interface PasteKeyProvider {
-  kind: "postmark" | "mailgun" | "smtp" | "sendgrid" | "brevo" | "mailersend" | "mailjet";
+  kind: "postmark" | "mailgun" | "smtp" | "sendgrid" | "brevo" | "mailersend" | "mailjet" | "bird";
   name: string;
   description: ReactNode;
   fields: KeyField[];
@@ -141,6 +142,21 @@ export const PASTE_KEY_PROVIDERS: Record<PasteKeyProvider["kind"], PasteKeyProvi
     ],
     link: { href: "https://app.mailgun.com/settings/api_security", label: "Open Mailgun API Security" },
     note: "We use them to set up receiving and read your domains. Your mail sends from your own Mailgun account.",
+  },
+  bird: {
+    kind: "bird",
+    name: "Bird",
+    description: "Paste a workspace access key. HelloBox sets up the webhook for delivery events and received mail with it.",
+    fields: [
+      {
+        name: "apiKey",
+        label: "Access key",
+        placeholder: "bk_us1_xxxxxxxx",
+        help: "In Bird, open Settings, then API keys, and create a key with email and webhook access. Bird shows it once.",
+      },
+    ],
+    link: { href: "https://app.bird.com", label: "Open Bird" },
+    note: "We use it to read your domains, set up receiving and get delivery events. Your mail sends from your own Bird workspace.",
   },
   mailjet: {
     kind: "mailjet",

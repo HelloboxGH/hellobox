@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowSquareOut, Check, EnvelopeSimple, HourglassMedium, Mailbox, PaperPlane, PaperPlaneRight, PaperPlaneTilt, Plus, Warning } from "@phosphor-icons/react";
+import { ArrowSquareOut, Bird, Check, EnvelopeSimple, HourglassMedium, Mailbox, PaperPlane, PaperPlaneRight, PaperPlaneTilt, Plus, Warning } from "@phosphor-icons/react";
 import { type FormEvent, useCallback, useEffect, useState } from "react";
 import { SES_REGIONS, stackConsoleUrl, type SesRegion } from "@hellobox/providers/connect";
 import { PROVIDER_INFO, type ProviderKind } from "@hellobox/providers/types";
@@ -86,6 +86,11 @@ export function ProvidersSection({ data, refresh, admin }: { data: Bootstrap; re
     const broken = data.connections.find((c) => c.provider === "mailgun" && c.status === "needs_reconnect");
     return { reconnectId: broken?.id };
   });
+  const [bird, setBird] = useState<{ reconnectId?: string } | null>(() => {
+    if (requested !== "bird" || !admin) return null;
+    const broken = data.connections.find((c) => c.provider === "bird" && c.status === "needs_reconnect");
+    return { reconnectId: broken?.id };
+  });
   const [mailjet, setMailjet] = useState<{ reconnectId?: string } | null>(() => {
     if (requested !== "mailjet" || !admin) return null;
     const broken = data.connections.find((c) => c.provider === "mailjet" && c.status === "needs_reconnect");
@@ -127,7 +132,7 @@ export function ProvidersSection({ data, refresh, admin }: { data: Bootstrap; re
     brevo: "ready",
     mailersend: "ready",
     mailjet: "ready",
-    bird: "hidden",
+    bird: "ready",
     custom: "hidden",
   };
 
@@ -141,6 +146,7 @@ export function ProvidersSection({ data, refresh, admin }: { data: Bootstrap; re
     else if (kind === "brevo") setBrevo({});
     else if (kind === "mailersend") setMailersend({});
     else if (kind === "mailjet") setMailjet({});
+    else if (kind === "bird") setBird({});
     // An API route that redirects to Resend, so a full page load.
     else if (kind === "resend") window.location.assign(new URL(connectHref, window.location.origin));
   }
@@ -194,6 +200,15 @@ export function ProvidersSection({ data, refresh, admin }: { data: Bootstrap; re
             refresh={refresh}
             admin={admin}
             onReconnect={() => setSendgrid({ reconnectId: connection.id })}
+          />
+        ) : connection.provider === "bird" ? (
+          <BirdConnection
+            key={connection.id}
+            connection={connection}
+            data={data}
+            refresh={refresh}
+            admin={admin}
+            onReconnect={() => setBird({ reconnectId: connection.id })}
           />
         ) : connection.provider === "mailjet" ? (
           <MailjetConnection
@@ -280,6 +295,12 @@ export function ProvidersSection({ data, refresh, admin }: { data: Bootstrap; re
         open={sendgrid !== null}
         reconnectId={sendgrid?.reconnectId}
         onOpenChange={(open) => !open && setSendgrid(null)}
+        refresh={refresh}
+      />
+      <BirdConnectDialog
+        open={bird !== null}
+        reconnectId={bird?.reconnectId}
+        onOpenChange={(open) => !open && setBird(null)}
         refresh={refresh}
       />
       <MailjetConnectDialog
@@ -1545,3 +1566,83 @@ function MailjetConnection({ connection, data, refresh, admin, onReconnect }: {
   );
 }
 
+function BirdConnectDialog({ open, onOpenChange, reconnectId, refresh }: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  reconnectId?: string;
+  refresh: () => void;
+}) {
+  const run = useRun();
+
+  async function connect(values: Record<string, string>) {
+    const done = await run(
+      () => call("/connections/bird/connect", { apiKey: values.apiKey ?? "", connectionId: reconnectId }),
+      reconnectId ? "Bird is connected again" : "Bird is connected",
+    );
+    if (!done) return;
+    refresh();
+    onOpenChange(false);
+  }
+
+  return <PasteKeyDialog provider={PASTE_KEY_PROVIDERS.bird} open={open} onOpenChange={onOpenChange} onSubmit={connect} />;
+}
+
+function BirdConnection({ connection, data, refresh, admin, onReconnect }: {
+  connection: Connection;
+  data: Bootstrap;
+  refresh: () => void;
+  admin: boolean;
+  onReconnect: () => void;
+}) {
+  const run = useRun();
+  const pending = new Set(connection.birdPending ?? []);
+
+  async function setReceiving(domain: string, on: boolean) {
+    const result = await call("/connections/bird/receiving", { connectionId: connection.id, domain, on });
+    if (result.waiting) notifyInfo(`Bird turns on receiving for ${domain} once it sees the domain's DKIM record. HelloBox keeps trying.`);
+    return result.mx;
+  }
+
+  return (
+    <div className="space-y-3 rounded-2xl border p-3">
+      <ProviderRow
+        icon={<Bird className="size-5 text-info" />}
+        name="Bird"
+        detail={connection.birdRegion === "eu1" ? "EU" : undefined}
+        status={connection.status}
+      >
+        {admin && connection.status === "needs_reconnect" && <Button size="sm" onClick={onReconnect}>Connect again</Button>}
+        {admin && (
+          <DisconnectButton
+            title="Disconnect Bird?"
+            description="New mail stops arriving and sending stops. Your existing mail stays here. We remove our webhook from Bird and turn off the receiving we turned on; your domains stay there."
+            onConfirm={async () => {
+              await run(() => call("/connections/disconnect", { id: connection.id }), "Disconnected");
+              refresh();
+            }}
+          />
+        )}
+      </ProviderRow>
+
+      {connection.status === "needs_reconnect" && (
+        <Alert variant="warning" className="rounded-xl">
+          <Warning />
+          <AlertDescription>Bird stopped accepting the access key, so it was probably revoked. Connect again with a new key.</AlertDescription>
+        </Alert>
+      )}
+
+      {connection.status === "active" && (
+        <DomainList
+          connection={connection}
+          data={data}
+          admin={admin}
+          refresh={refresh}
+          canAdd
+          emptyText="No domains in Bird yet. Add one to send and receive from it. Bird suggests a subdomain, like mail.example.com."
+          receiving={(domain) => ({ on: domain.receivingEnabled || pending.has(domain.name), waiting: pending.has(domain.name) })}
+          setReceiving={setReceiving}
+        />
+      )}
+    </div>
+  );
+}

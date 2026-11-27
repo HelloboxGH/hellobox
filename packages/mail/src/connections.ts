@@ -2,7 +2,9 @@ import { decrypt, encrypt } from "@hellobox/config";
 import { connections, domains, getDb } from "@hellobox/db";
 import { getExtensions } from "@hellobox/extensions";
 import {
+  BirdProvider,
   BrevoProvider,
+  isBirdAuthError,
   isBrevoAuthError,
   isMailersendAuthError,
   isMailjetAuthError,
@@ -174,6 +176,12 @@ export function mailjetProviderFor(connection: Connection) {
   });
 }
 
+export function birdProviderFor(connection: Connection) {
+  const { bird } = connection.config;
+  if (!bird || !connection.accessTokenEnc) throw new Error("This Bird connection hasn't finished connecting");
+  return new BirdProvider({ apiKey: decrypt(connection.accessTokenEnc), region: bird.region, receiving: bird.receiving, pending: bird.pending ?? [] });
+}
+
 export function smtpProviderFor(connection: Connection) {
   const { smtp } = connection.config;
   if (!smtp || !connection.accessTokenEnc) throw new Error("This SMTP connection hasn't finished connecting");
@@ -203,6 +211,8 @@ export function providerFor(connection: Connection): MailProvider {
       return mailersendProviderFor(connection);
     case "mailjet":
       return mailjetProviderFor(connection);
+    case "bird":
+      return birdProviderFor(connection);
     default: {
       // A kind cloud implements (the public demo's).
       const make = getExtensions().mail?.providers?.[connection.provider];
@@ -239,6 +249,9 @@ export async function tearDownConnection(connection: Connection) {
         return;
       case "brevo":
         if (connection.status === "active") await brevoProviderFor(connection).disconnect(connection.webhookId);
+        return;
+      case "bird":
+        if (connection.status === "active") await birdProviderFor(connection).disconnect(connection.webhookId);
         return;
       case "mailjet":
         if (connection.status === "active") await mailjetProviderFor(connection).disconnect(connection.config.mailjet?.callbacks ?? []);
@@ -286,6 +299,7 @@ export function grantErrorProvider(error: unknown): ProviderKind | null {
   if (isBrevoAuthError(error)) return "brevo";
   if (isMailersendAuthError(error)) return "mailersend";
   if (isMailjetAuthError(error)) return "mailjet";
+  if (isBirdAuthError(error)) return "bird";
   if (error instanceof OAuthGrantError) return "resend";
   // "Access token is missing required scopes: full_access", or a token Resend no longer knows.
   if (error instanceof ResendApiError && (error.status === 401 || (error.status === 403 && /scope/i.test(error.message)))) {

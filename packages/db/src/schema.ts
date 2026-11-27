@@ -282,6 +282,16 @@ export interface ConnectionConfig {
     // False when Mailjet wouldn't take a callback for every event type.
     events: boolean;
   };
+  // Bird: the host its key works on, and the domains HelloBox turned receiving on for
+  // (receiving is Bird's own domain setting). The access key is in accessTokenEnc, the
+  // webhook's id in webhookId and its signing secret in webhookSecretEnc.
+  bird?: {
+    region: "us1" | "eu1";
+    receiving: string[];
+    // Receiving asked for, but Bird won't turn it on before the domain's DKIM checks out.
+    // Retried on "Check again" and by the maintenance job.
+    pending?: string[];
+  };
   // SMTP: the server and who signs in. The password is in accessTokenEnc. The server can't
   // list domains, so these are the ones the customer added.
   smtp?: {
