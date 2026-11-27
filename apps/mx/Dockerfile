@@ -8,6 +8,10 @@ ARG HARAKA_VERSION=3.4.2
 RUN npm install -g --omit=dev "Haraka@${HARAKA_VERSION}" && npm cache clean --force
 
 WORKDIR /app
+# The TLS plugin needs DH parameters and runs openssl to make them when they're missing,
+# which Alpine doesn't ship. Made once here, in a layer of its own so it stays cached:
+# making them at every start would hold up the port.
+RUN apk add --no-cache openssl && mkdir -p config && openssl dhparam -out config/dhparams.pem 2048
 COPY config/ ./config/
 COPY plugins/hellobox.js ./plugins/hellobox.js
 COPY entrypoint.sh ./entrypoint.sh
