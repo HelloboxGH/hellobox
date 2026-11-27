@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowSquareOut, Bird, Check, EnvelopeSimple, HourglassMedium, Mailbox, PaperPlane, PaperPlaneRight, PaperPlaneTilt, Plus, Warning } from "@phosphor-icons/react";
+import { ArrowSquareOut, Bird, Check, Code, EnvelopeSimple, HourglassMedium, Mailbox, PaperPlane, PaperPlaneRight, PaperPlaneTilt, Plus, Warning } from "@phosphor-icons/react";
 import { type FormEvent, useCallback, useEffect, useState } from "react";
 import { SES_REGIONS, stackConsoleUrl, type SesRegion } from "@hellobox/providers/connect";
 import { PROVIDER_INFO, type ProviderKind } from "@hellobox/providers/types";
@@ -29,6 +29,7 @@ import { ISSUES_URL } from "@/core/links";
 import { cn } from "@/lib/utils";
 import { PASTE_KEY_PROVIDERS, PasteKeyDialog, type ProviderAvailability, ProviderPicker } from "./connect-provider";
 import { CopyValue } from "./dns-records";
+import { CustomConnectDialog } from "./custom-provider";
 import { DomainList } from "./provider-domains";
 import { useRun, useRunning } from "./shared";
 
@@ -116,6 +117,11 @@ export function ProvidersSection({ data, refresh, admin }: { data: Bootstrap; re
     const broken = data.connections.find((c) => c.provider === "smtp" && c.status === "needs_reconnect");
     return { reconnectId: broken?.id };
   });
+  const [custom, setCustom] = useState<{ reconnectId?: string; spec?: Record<string, unknown> | null } | null>(() => {
+    if (requested !== "custom" || !admin) return null;
+    const broken = data.connections.find((c) => c.provider === "custom" && c.status === "needs_reconnect");
+    return { reconnectId: broken?.id };
+  });
   const [picking, setPicking] = useState(false);
   const [requesting, setRequesting] = useState<{ provider?: string } | null>(null);
   const connectHref = `/api/resend/oauth/start?workspace=${data.workspace.id}`;
@@ -133,7 +139,8 @@ export function ProvidersSection({ data, refresh, admin }: { data: Bootstrap; re
     mailersend: "ready",
     mailjet: "ready",
     bird: "ready",
-    custom: "hidden",
+    // Only sends, like SMTP.
+    custom: data.helloboxMx ? "ready" : "hidden",
   };
 
   function pick(kind: ProviderKind) {
@@ -147,6 +154,7 @@ export function ProvidersSection({ data, refresh, admin }: { data: Bootstrap; re
     else if (kind === "mailersend") setMailersend({});
     else if (kind === "mailjet") setMailjet({});
     else if (kind === "bird") setBird({});
+    else if (kind === "custom") setCustom({});
     // An API route that redirects to Resend, so a full page load.
     else if (kind === "resend") window.location.assign(new URL(connectHref, window.location.origin));
   }
@@ -246,6 +254,15 @@ export function ProvidersSection({ data, refresh, admin }: { data: Bootstrap; re
             admin={admin}
             onReconnect={() => setSmtp({ reconnectId: connection.id })}
           />
+        ) : connection.provider === "custom" ? (
+          <CustomConnection
+            key={connection.id}
+            connection={connection}
+            data={data}
+            refresh={refresh}
+            admin={admin}
+            onEdit={(spec) => setCustom({ reconnectId: connection.id, spec })}
+          />
         ) : connection.provider === "resend" ? (
           <ResendConnection key={connection.id} connection={connection} data={data} refresh={refresh} admin={admin} connectHref={connectHref} />
         ) : null,
@@ -319,6 +336,14 @@ export function ProvidersSection({ data, refresh, admin }: { data: Bootstrap; re
         open={brevo !== null}
         reconnectId={brevo?.reconnectId}
         onOpenChange={(open) => !open && setBrevo(null)}
+        refresh={refresh}
+      />
+      <CustomConnectDialog
+        key={custom?.reconnectId ?? "new"}
+        open={custom !== null}
+        reconnectId={custom?.reconnectId}
+        initialSpec={custom?.spec ?? undefined}
+        onOpenChange={(open) => !open && setCustom(null)}
         refresh={refresh}
       />
       <SmtpConnectDialog
@@ -1219,6 +1244,80 @@ function SmtpConnection({ connection, data, refresh, admin, onReconnect }: {
         <Alert variant="warning" className="rounded-xl">
           <Warning />
           <AlertDescription>The server stopped accepting the username or password. Connect again with the current ones.</AlertDescription>
+        </Alert>
+      )}
+
+      {connection.status === "active" && (
+        <DomainList
+          connection={connection}
+          data={data}
+          admin={admin}
+          refresh={refresh}
+          canAdd
+          emptyText="Add the domains you send from. Each one then receives with HelloBox."
+          receiving={() => ({ on: false })}
+        />
+      )}
+    </div>
+  );
+}
+
+// Like SMTP: it only sends, and its domains receive with HelloBox.
+function CustomConnection({ connection, data, refresh, admin, onEdit }: {
+  connection: Connection;
+  data: Bootstrap;
+  refresh: () => void;
+  admin: boolean;
+  // Opens the editor with the saved spec.
+  onEdit: (spec: Record<string, unknown> | null) => void;
+}) {
+  const run = useRun();
+  const name = connection.customName ?? "Custom provider";
+  const [webhookUrl, setWebhookUrl] = useState<string | null>(null);
+
+  async function edit() {
+    await run(async () => onEdit((await call("/connections/custom/details", { connectionId: connection.id })).spec));
+  }
+
+  async function showWebhook() {
+    await run(async () => setWebhookUrl((await call("/connections/custom/details", { connectionId: connection.id })).webhookUrl));
+  }
+
+  return (
+    <div className="space-y-3 rounded-2xl border p-3">
+      <ProviderRow icon={<Code className="size-5 text-muted-foreground" />} name={name} detail="Custom provider" status={connection.status}>
+        {admin && <Button size="sm" variant={connection.status === "needs_reconnect" ? "default" : "outline"} onClick={edit}>{connection.status === "needs_reconnect" ? "Connect again" : "Edit"}</Button>}
+        {admin && (
+          <DisconnectButton
+            title={`Disconnect ${name}?`}
+            description="Sending through it stops. Your existing mail stays here."
+            onConfirm={async () => {
+              await run(() => call("/connections/disconnect", { id: connection.id }), "Disconnected");
+              refresh();
+            }}
+          />
+        )}
+      </ProviderRow>
+
+      {admin && connection.status === "active" && connection.customEvents && (
+        <div className="space-y-1.5 rounded-xl bg-muted/50 p-3 text-sm">
+          <p className="font-medium">Delivery events</p>
+          <p className="text-muted-foreground text-xs">Paste this address into your provider&apos;s webhook settings, so sent mail shows Delivered, Bounced or Complained.</p>
+          {webhookUrl ? (
+            <div className="flex items-center gap-1">
+              <code className="min-w-0 flex-1 truncate rounded-md bg-background px-2 py-1 font-mono text-xs">{webhookUrl}</code>
+              <CopyValue value={webhookUrl} />
+            </div>
+          ) : (
+            <Button size="sm" variant="outline" onClick={showWebhook}>Show the address</Button>
+          )}
+        </div>
+      )}
+
+      {connection.status === "needs_reconnect" && (
+        <Alert variant="warning" className="rounded-xl">
+          <Warning />
+          <AlertDescription>The provider stopped accepting your values (it answered 401 or 403). Connect again with the current ones.</AlertDescription>
         </Alert>
       )}
 

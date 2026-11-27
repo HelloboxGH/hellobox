@@ -12,6 +12,7 @@ import {
   setPostmarkReceiving,
 } from "./postmark";
 import { addSmtpDomain, smtpDomainSetup } from "./smtp";
+import { addCustomDomain, customDomainSetup } from "./custom";
 import { activatePendingBirdReceiving, addBirdDomain, applyBirdDomainDns, birdDomainSetup, setBirdReceiving } from "./bird";
 import { addMailjetDomain, applyMailjetDomainDns, mailjetDomainSetup, setMailjetReceiving } from "./mailjet";
 import { addMailersendDomain, applyMailersendDomainDns, ensureMailersendWebhooks, mailersendDomainSetup, setMailersendReceiving } from "./mailersend";
@@ -41,6 +42,7 @@ export async function addProviderDomain(connectionId: string, workspaceId: strin
   if (kind === "postmark") return addPostmarkDomain(connectionId, workspaceId, domain);
   if (kind === "mailgun") return addMailgunDomain(connectionId, workspaceId, domain);
   if (kind === "smtp") return addSmtpDomain(connectionId, workspaceId, domain);
+  if (kind === "custom") return addCustomDomain(connectionId, workspaceId, domain);
   if (kind === "sendgrid") return addSendgridDomain(connectionId, workspaceId, domain);
   if (kind === "brevo") return addBrevoDomain(connectionId, workspaceId, domain);
   if (kind === "mailersend") return addMailersendDomain(connectionId, workspaceId, domain);
@@ -55,6 +57,7 @@ export async function providerDomainSetup(connectionId: string, workspaceId: str
   if (kind === "postmark") return postmarkDomainSetup(connectionId, workspaceId, domain);
   if (kind === "mailgun") return mailgunDomainSetup(connectionId, workspaceId, domain);
   if (kind === "smtp") return smtpDomainSetup(connectionId, workspaceId, domain);
+  if (kind === "custom") return customDomainSetup(connectionId, workspaceId, domain);
   if (kind === "sendgrid") return sendgridDomainSetup(connectionId, workspaceId, domain);
   if (kind === "brevo") return brevoDomainSetup(connectionId, workspaceId, domain);
   if (kind === "mailersend") return mailersendDomainSetup(connectionId, workspaceId, domain);
@@ -70,6 +73,7 @@ export async function applyProviderDomainDns(connectionId: string, workspaceId: 
   if (kind === "mailgun") return applyMailgunDomainDns(connectionId, workspaceId, domain, host);
   // Nothing to write: an SMTP server's records are set up wherever the server says.
   if (kind === "smtp") return smtpDomainSetup(connectionId, workspaceId, domain);
+  if (kind === "custom") return customDomainSetup(connectionId, workspaceId, domain);
   if (kind === "sendgrid") return applySendgridDomainDns(connectionId, workspaceId, domain, host);
   if (kind === "brevo") return applyBrevoDomainDns(connectionId, workspaceId, domain, host);
   if (kind === "mailersend") return applyMailersendDomainDns(connectionId, workspaceId, domain, host);

@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowSquareOut, CaretRight, ChatCircleDots, EnvelopeSimple, Bird, Key, Mailbox, PaperPlane, PaperPlaneRight, PaperPlaneTilt } from "@phosphor-icons/react";
+import { ArrowSquareOut, CaretRight, ChatCircleDots, Code, EnvelopeSimple, Bird, Key, Mailbox, PaperPlane, PaperPlaneRight, PaperPlaneTilt } from "@phosphor-icons/react";
 import type { ProviderKind } from "@hellobox/providers/types";
 import { type FormEvent, type ReactNode, useState } from "react";
 import { AmazonSesIcon, MailgunIcon, PostmarkIcon, ResendIcon } from "@/components/brand-icons";
@@ -26,6 +26,7 @@ const CHOICES: { kind: ProviderKind; name: string; detail: string; icon: ReactNo
   { kind: "brevo", name: "Brevo", detail: "Paste an API key", icon: <Mailbox className="size-5 text-success" /> },
   { kind: "sendgrid", name: "SendGrid", detail: "Paste an API key", icon: <PaperPlaneTilt className="size-5 text-info" /> },
   { kind: "smtp", name: "SMTP", detail: "A server, a username and a password", icon: <EnvelopeSimple className="size-5 text-muted-foreground" /> },
+  { kind: "custom", name: "Custom provider", detail: "Describe any sending API yourself", icon: <Code className="size-5 text-muted-foreground" /> },
 ];
 
 export const providerIcon = (kind: ProviderKind) => CHOICES.find((choice) => choice.kind === kind)?.icon;

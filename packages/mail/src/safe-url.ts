@@ -147,3 +147,52 @@ export async function resolvePublicHost(host: string): Promise<string> {
   }
   return addresses[0]!.address;
 }
+
+export interface PublicResponse {
+  status: number;
+  headers: Record<string, string>;
+  body: string;
+}
+
+/**
+ * Any request to a URL someone gave us, such as a custom provider's API. The same rules as
+ * postToPublicUrl: DNS checked as the connection opens, no redirects, a time limit and a
+ * capped reply. Response headers come back lower-cased.
+ */
+export function requestPublicUrl(
+  input: { method: string; url: string; headers: Record<string, string>; body?: Uint8Array },
+  { timeoutMs = 15_000, maxBytes = 1024 * 1024 } = {},
+): Promise<PublicResponse> {
+  const url = assertPublicUrl(input.url);
+  const request = url.protocol === "https:" ? httpsRequest : httpRequest;
+  return new Promise((resolve, reject) => {
+    const req = request(
+      url,
+      {
+        method: input.method,
+        headers: { ...(input.body ? { "Content-Length": input.body.byteLength.toString() } : {}), ...input.headers },
+        lookup: guardedLookup,
+        signal: AbortSignal.timeout(timeoutMs),
+      },
+      (res) => {
+        const chunks: Buffer[] = [];
+        let size = 0;
+        res.on("data", (chunk: Buffer) => {
+          if (size >= maxBytes) return;
+          chunks.push(chunk.subarray(0, maxBytes - size));
+          size += chunk.length;
+        });
+        res.on("end", () => {
+          const headers: Record<string, string> = {};
+          for (const [key, value] of Object.entries(res.headers)) {
+            if (value !== undefined) headers[key] = Array.isArray(value) ? value.join(", ") : value;
+          }
+          resolve({ status: res.statusCode ?? 0, headers, body: Buffer.concat(chunks).toString("utf8") });
+        });
+        res.on("error", reject);
+      },
+    );
+    req.on("error", reject);
+    req.end(input.body ? Buffer.from(input.body) : undefined);
+  });
+}

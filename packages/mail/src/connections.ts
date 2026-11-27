@@ -4,6 +4,10 @@ import { getExtensions } from "@hellobox/extensions";
 import {
   BirdProvider,
   BrevoProvider,
+  checkSpec,
+  CustomError,
+  CustomProvider,
+  isCustomAuthError,
   isBirdAuthError,
   isBrevoAuthError,
   isMailersendAuthError,
@@ -22,6 +26,8 @@ import {
   SendgridProvider,
   SesProvider,
   SmtpProvider,
+  type CustomHttp,
+  type CustomSpec,
   type MailProvider,
   type ProviderKind,
 } from "@hellobox/providers";
@@ -34,7 +40,7 @@ import {
 import { and, eq, inArray } from "drizzle-orm";
 import { fitsPlan } from "./domain-names";
 import { claimConflict, countedDomainNames, domainClaims, lockDomainName } from "./domains";
-import { resolvePublicHost } from "./safe-url";
+import { requestPublicUrl, resolvePublicHost, UnsafeUrlError } from "./safe-url";
 
 type Connection = typeof connections.$inferSelect;
 
@@ -191,6 +197,36 @@ export function smtpProviderFor(connection: Connection) {
   );
 }
 
+// Every custom request goes through here: a public address, checked as it connects, no
+// redirects, 15 seconds and a 1 MB answer at most. Logs keep only the method and host.
+export const customHttp: CustomHttp = async (request) => {
+  const started = Date.now();
+  try {
+    const response = await requestPublicUrl(request);
+    console.info(`[custom] ${request.method} ${new URL(request.url).host} ${response.status} ${Date.now() - started}ms`);
+    return response;
+  } catch (error) {
+    if (error instanceof UnsafeUrlError) throw new CustomError(error.message);
+    const reason = error instanceof Error && error.name === "TimeoutError" ? "it didn't answer in 15 seconds" : "the address couldn't be reached";
+    console.info(`[custom] ${request.method} ${new URL(request.url).host} failed ${Date.now() - started}ms`);
+    throw new CustomError(`Couldn't reach the provider: ${reason}`);
+  }
+};
+
+// The spec as saved, checked again: it may have been written by an older version.
+export function loadSpec(config: Connection["config"]): CustomSpec {
+  const check = checkSpec(config.custom?.spec);
+  if (!check.ok) throw new Error(`This custom provider's spec has problems: ${check.problems.join("; ")}`);
+  return check.spec;
+}
+
+export function customProviderFor(connection: Connection, http: CustomHttp = customHttp) {
+  const { custom } = connection.config;
+  if (!custom || !connection.accessTokenEnc) throw new Error("This custom provider hasn't finished connecting");
+  const secrets = JSON.parse(decrypt(connection.accessTokenEnc)) as Record<string, string>;
+  return new CustomProvider({ spec: loadSpec(connection.config), secrets, domains: custom.domains }, http);
+}
+
 export function providerFor(connection: Connection): MailProvider {
   switch (connection.provider) {
     case "ses":
@@ -213,6 +249,8 @@ export function providerFor(connection: Connection): MailProvider {
       return mailjetProviderFor(connection);
     case "bird":
       return birdProviderFor(connection);
+    case "custom":
+      return customProviderFor(connection);
     default: {
       // A kind cloud implements (the public demo's).
       const make = getExtensions().mail?.providers?.[connection.provider];
@@ -264,6 +302,7 @@ export async function tearDownConnection(connection: Connection) {
         return;
       // Nothing was set up at the server.
       case "smtp":
+      case "custom":
       case "demo":
         return;
     }
@@ -300,6 +339,7 @@ export function grantErrorProvider(error: unknown): ProviderKind | null {
   if (isMailersendAuthError(error)) return "mailersend";
   if (isMailjetAuthError(error)) return "mailjet";
   if (isBirdAuthError(error)) return "bird";
+  if (isCustomAuthError(error)) return "custom";
   if (error instanceof OAuthGrantError) return "resend";
   // "Access token is missing required scopes: full_access", or a token Resend no longer knows.
   if (error instanceof ResendApiError && (error.status === 401 || (error.status === 403 && /scope/i.test(error.message)))) {

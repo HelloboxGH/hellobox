@@ -303,6 +303,11 @@ export const bootstrap = workspaceAction("/app/bootstrap").handler(async ({ ctx 
       birdRegion: config.bird?.region ?? null,
       // Bird: receiving asked for, waiting for the domain's DKIM.
       birdPending: config.bird?.pending ?? [],
+      // Custom provider: the name its spec gives. The spec itself is read by admins only,
+      // when they edit it.
+      customName: typeof config.custom?.spec.name === "string" ? config.custom.spec.name : null,
+      // Whether its spec reads delivery events.
+      customEvents: config.custom ? Boolean(config.custom.spec.events) : null,
     })),
     providers: { ses: isAwsBrokerConfigured(), cloudflare: isCloudflareConfigured() },
     // DNS hosts the workspace let us write records to.

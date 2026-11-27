@@ -1,7 +1,7 @@
 # Connect your email provider
 
 HelloBox doesn't send or receive email by itself. It works through your account at an email
-provider: Postmark, Mailgun, Resend, Amazon SES, SendGrid, Brevo, MailerSend, Mailjet, Bird, or any SMTP server. Your mail keeps going through that
+provider: Postmark, Mailgun, Resend, Amazon SES, SendGrid, Brevo, MailerSend, Mailjet, Bird, any SMTP server, or any other sending API you describe yourself. Your mail keeps going through that
 account, under your name and reputation; HelloBox shows it to your team and sends the
 replies.
 
@@ -54,6 +54,7 @@ If you already send with one of these, use it. If you're choosing:
 | **Mailjet** | Easy. Paste two keys. | Receiving needs a paid Mailjet plan. Mailjet takes one events address per event type for the whole account. |
 | **Bird** | Easy. Paste one key. | Formerly SparkPost. Signed webhooks, and Bird keeps received mail for 30 days, so none is lost. Use a subdomain, like `mail.example.com`. |
 | **SMTP** | Easy. A server, a username and a password. | Only sends, so it needs HelloBox's own mail server to receive. Sent mail shows *Sent*, never *Delivered*, and campaigns aren't available. |
+| **Custom provider** | You describe the provider's send request in JSON. | Like SMTP: only sends, needs HelloBox's own mail server to receive, and sent mail shows *Sent*. |
 
 You can connect more than one provider to a workspace later.
 
@@ -523,6 +524,128 @@ Set up SPF and DKIM for the domain wherever your SMTP provider says, so your mai
 in spam. HelloBox has no records of its own to show for SMTP.
 
 If the password changes, the connection shows **Connect again**.
+
+## Custom provider
+
+For a sending service HelloBox doesn't integrate. You describe its send request (address,
+headers and body) in a JSON **spec**, and HelloBox fills it in for every email. Like SMTP, it only
+sends, so it needs HelloBox's own mail server to receive.
+
+```json
+{
+  "version": 1,
+  "name": "Acme Mail",
+  "send": {
+    "method": "POST",
+    "url": "https://api.acme.example/v1/send",
+    "headers": { "Authorization": "Bearer <API_KEY>" },
+    "body": {
+      "type": "json",
+      "content": {
+        "from": "{{from}}",
+        "to": "{{to | emails}}",
+        "subject": "{{subject}}",
+        "html": "{{html}}",
+        "text": "{{text}}",
+        "headers": "{{headers | map}}"
+      }
+    },
+    "response": { "id": "id" }
+  }
+}
+```
+
+- **`<NAME>`** is one of your own values, like an API key. Never put the key itself in the
+  spec. When you connect, HelloBox asks for a value for each name and stores them encrypted.
+- **`{{field}}`** is part of the email. A value that is only a placeholder keeps its type (a list
+  stays a list); inside longer text, it's inserted as text. Empty values are left out.
+- **`body.type`** is `json`, `form`, `multipart` (attachments become file parts) or `text`.
+- **`response.id`** is where the provider's message id is in its answer (`data.id`, or
+  `header:X-Message-Id`). Without it, HelloBox uses the email's own Message-ID.
+
+| Field | Formats, after `\|` |
+|---|---|
+| `to`, `cc`, `bcc`, `replyTo` | a list of `Name <a@b>` (default); `csv`; `emails`; `first`, `first email`; `objects email name` (with your own key names) |
+| `from` | `Name <a@b>` (default); `email`; `name`; `object email name` |
+| `subject`, `html`, `text`, `idempotencyKey` | as they are |
+| `messageId` | `<id@host>` (default); `bare` |
+| `headers`, `tags` | `map` (default); `list name value` |
+| `attachments` | `objects`, with each part renamed as `part=key`: parts `filename`, `contentType`, `content` (base64) and `contentId`, like `objects filename=name content=data` |
+| `mime` | the whole message as text (default); `base64` |
+
+1. In HelloBox, open **Settings → Domains → Connect a provider → Custom provider**.
+2. Start one of four ways:
+   - **Paste curl**: copy the send example from your provider's API docs, with `<API_KEY>` where
+     the key goes, and press **Read the command**. `-u` becomes Basic sign-in, `-F name=@file`
+     becomes the email's attachments, and options HelloBox can't follow (like `-L` or `--cert`)
+     are refused by name.
+   - **Ask your AI**: press **Copy prompt**, paste it into the AI you use with your provider's
+     API docs under it, and paste its answer back. The prompt tells it never to include real
+     keys.
+   - **Editor**: the request as fields. On any value, the sparkle menu puts a part of the email
+     there in the shape your provider wants.
+   - **JSON**: paste or write the spec.
+3. Fix anything listed. A value that looks like a real key is flagged: **Move it to a value**
+   takes it out of the spec and into your encrypted values.
+4. Enter a value for each `<NAME>`.
+5. Under **Send a test**, enter an address your provider lets you send from and press **Send to
+   me**. HelloBox shows the provider's answer, with your values hidden. **Connect** works once a
+   test has.
+6. **Add domain** for each domain you send from, then on each one press **Receive with
+   HelloBox…** and follow the steps.
+
+Requests go only to public `https` addresses, with no redirects, and time out after 15
+seconds. If the provider answers 401 or 403, the connection shows **Connect again**.
+
+### Domains from the provider (optional)
+
+Without this, you type your domains. With it, HelloBox lists them from the provider, and
+checks your values with that request when you connect:
+
+```json
+"domains": {
+  "method": "GET",
+  "url": "https://api.acme.example/v1/domains",
+  "headers": { "Authorization": "Bearer <API_KEY>" },
+  "list": "data",
+  "name": "domain",
+  "verified": { "path": "status", "equals": "verified" }
+}
+```
+
+`list` is where the array is in the answer, `name` where each domain's name is, and `verified`
+(optional) when a domain is ready to send.
+
+### Delivery events (optional)
+
+Without events, sent mail shows *Sent*, never *Delivered*. With them, add an `events` part:
+
+```json
+"events": {
+  "verify": { "type": "hmac-sha256", "header": "X-Acme-Signature", "secret": "<WEBHOOK_SECRET>", "encoding": "hex", "prefix": "sha256=" },
+  "list": "events",
+  "type": "event",
+  "map": { "delivered": "delivered", "bounce": "bounced", "spam": "complained", "deferred": "delayed", "dropped": "failed" },
+  "id": "message_id",
+  "recipient": "email",
+  "reason": "reason"
+}
+```
+
+- **`list`**: where the array of events is, or leave it out for one event per post.
+- **`type`**, **`id`**, **`recipient`**, **`reason`**: where each is inside an event. `id` must be
+  the same id the send returned (`response.id`), or the email's Message-ID when you didn't set
+  one.
+- **`map`**: the provider's event names, to `delivered`, `bounced`, `complained`, `delayed` or
+  `failed`. Others are ignored.
+- **`verify`** (optional) checks the provider's signature: `hmac-sha256` (of the body, or of
+  `timestamp.body` with `timestampHeader`, within 5 minutes), `standard-webhooks` (the
+  `webhook-id`, `webhook-timestamp` and `webhook-signature` headers), or `token` (a header that
+  must equal a value).
+
+Once connected, the provider's card shows **Delivery events → Show the address**. Paste that
+address into the provider's webhook settings. It carries a key of its own, so it works even for
+a provider that doesn't sign its webhooks; keep it private.
 
 ## Set up your domains
 

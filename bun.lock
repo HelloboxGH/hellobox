@@ -226,6 +226,7 @@
         "@hellobox/storage": "workspace:*",
         "nodemailer": "^10.4.0",
         "postal-mime": "^4.2.0",
+        "zod": "^4.6.7",
       },
       "devDependencies": {
         "@types/bun": "^1.4.4",

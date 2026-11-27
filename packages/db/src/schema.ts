@@ -300,6 +300,13 @@ export interface ConnectionConfig {
     username: string;
     domains: string[];
   };
+  // A custom provider: the spec the customer wrote (checked by checkSpec in
+  // @hellobox/providers/custom when loaded). Its <NAME> values are sealed together, as JSON,
+  // in accessTokenEnc. Without a domains request, these are the domains they typed.
+  custom?: {
+    spec: Record<string, unknown>;
+    domains: string[];
+  };
 }
 
 export const connections = pgTable(

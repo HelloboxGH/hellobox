@@ -23,6 +23,7 @@ import { mailersendActions } from "./actions/mailersend";
 import { mailjetActions } from "./actions/mailjet";
 import { birdActions } from "./actions/bird";
 import { smtpActions } from "./actions/smtp";
+import { customActions } from "./actions/custom";
 import { supportActions } from "./actions/support";
 import { threadActions } from "./actions/threads";
 import { vaultActions } from "./actions/vault";
@@ -50,6 +51,7 @@ export const allActions = {
   ...mailjetActions,
   ...birdActions,
   ...smtpActions,
+  ...customActions,
   ...supportActions,
   ...threadActions,
   ...vaultActions,

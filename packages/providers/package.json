@@ -8,7 +8,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./connect": "./src/ses/connect.ts",
-    "./types": "./src/types.ts"
+    "./types": "./src/types.ts",
+    "./custom": "./src/custom/index.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit"
@@ -30,6 +31,7 @@
     "@hellobox/resend": "workspace:*",
     "@hellobox/storage": "workspace:*",
     "nodemailer": "^10.4.0",
-    "postal-mime": "^4.2.0"
+    "postal-mime": "^4.2.0",
+    "zod": "^4.6.7"
   }
 }
