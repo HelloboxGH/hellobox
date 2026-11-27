@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowSquareOut, Bird, Check, Code, EnvelopeSimple, HourglassMedium, Mailbox, PaperPlane, PaperPlaneRight, PaperPlaneTilt, Plus, Warning } from "@phosphor-icons/react";
+import { ArrowSquareOut, Check, Code, EnvelopeSimple, HourglassMedium, Plus, Warning } from "@phosphor-icons/react";
 import { type FormEvent, useCallback, useEffect, useState } from "react";
 import { SES_REGIONS, stackConsoleUrl, type SesRegion } from "@hellobox/providers/connect";
 import { PROVIDER_INFO, type ProviderKind } from "@hellobox/providers/types";
@@ -22,7 +22,7 @@ import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "@/c
 import { type Bootstrap, call } from "@/core/client/api";
 import { notify, notifyInfo } from "@/core/client/notify";
 import { useSearchParam } from "@/core/client/use-search-param";
-import { AmazonSesIcon, CloudflareIcon, MailgunIcon, PostmarkIcon, ResendIcon } from "@/components/brand-icons";
+import { AmazonSesIcon, BirdIcon, BrevoIcon, CloudflareIcon, MailerSendIcon, MailgunIcon, MailjetIcon, PostmarkIcon, ResendIcon, SendGridIcon } from "@/components/brand-icons";
 import { track } from "@/core/client/analytics";
 import { clientExtensions } from "@/core/client/extensions";
 import { ISSUES_URL } from "@/core/links";
@@ -1375,7 +1375,7 @@ function SendgridConnection({ connection, data, refresh, admin, onReconnect }: {
   return (
     <div className="space-y-3 rounded-2xl border p-3">
       <ProviderRow
-        icon={<PaperPlaneTilt className="size-5 text-info" />}
+        icon={<SendGridIcon className="size-5" />}
         name="SendGrid"
         detail={connection.sendgridRegion === "eu" ? "EU" : undefined}
         status={connection.status}
@@ -1460,7 +1460,7 @@ function BrevoConnection({ connection, data, refresh, admin, onReconnect }: {
 
   return (
     <div className="space-y-3 rounded-2xl border p-3">
-      <ProviderRow icon={<Mailbox className="size-5 text-success" />} name="Brevo" status={connection.status}>
+      <ProviderRow icon={<BrevoIcon className="size-5" />} name="Brevo" status={connection.status}>
         {admin && connection.status === "needs_reconnect" && <Button size="sm" onClick={onReconnect}>Connect again</Button>}
         {admin && (
           <DisconnectButton
@@ -1541,7 +1541,7 @@ function MailersendConnection({ connection, data, refresh, admin, onReconnect }:
 
   return (
     <div className="space-y-3 rounded-2xl border p-3">
-      <ProviderRow icon={<PaperPlaneRight className="size-5 text-primary" />} name="MailerSend" status={connection.status}>
+      <ProviderRow icon={<MailerSendIcon className="size-5" />} name="MailerSend" status={connection.status}>
         {admin && connection.status === "needs_reconnect" && <Button size="sm" onClick={onReconnect}>Connect again</Button>}
         {admin && (
           <DisconnectButton
@@ -1622,7 +1622,7 @@ function MailjetConnection({ connection, data, refresh, admin, onReconnect }: {
 
   return (
     <div className="space-y-3 rounded-2xl border p-3">
-      <ProviderRow icon={<PaperPlane className="size-5 text-warning" />} name="Mailjet" status={connection.status}>
+      <ProviderRow icon={<MailjetIcon className="size-5" />} name="Mailjet" status={connection.status}>
         {admin && connection.status === "needs_reconnect" && <Button size="sm" onClick={onReconnect}>Connect again</Button>}
         {admin && (
           <DisconnectButton
@@ -1705,7 +1705,7 @@ function BirdConnection({ connection, data, refresh, admin, onReconnect }: {
   return (
     <div className="space-y-3 rounded-2xl border p-3">
       <ProviderRow
-        icon={<Bird className="size-5 text-info" />}
+        icon={<BirdIcon className="size-5 rounded-[5px]" />}
         name="Bird"
         detail={connection.birdRegion === "eu1" ? "EU" : undefined}
         status={connection.status}

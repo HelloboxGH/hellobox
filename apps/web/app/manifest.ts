@@ -4,7 +4,7 @@ export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "HelloBox",
     short_name: "HelloBox",
-    description: "A real inbox for Amazon SES, Resend, Postmark and Mailgun.",
+    description: "A real inbox for the email provider you already use.",
     start_url: "/inbox",
     display: "standalone",
     background_color: "#f4f5fb",

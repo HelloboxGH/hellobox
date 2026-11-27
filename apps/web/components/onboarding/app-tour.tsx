@@ -23,7 +23,7 @@ const STEPS: TourStep[] = [
     id: "connect",
     target: "connect",
     title: "Start by connecting your provider",
-    description: "Connect Amazon SES, Resend, Postmark or Mailgun. We import your domains and set up receiving, so your mail starts arriving here.",
+    description: "Connect your email provider, like Amazon SES, Resend, SendGrid or Postmark. We import your domains and set up receiving, so your mail starts arriving here.",
   },
   {
     id: "compose",

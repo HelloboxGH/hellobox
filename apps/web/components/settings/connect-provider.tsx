@@ -1,9 +1,9 @@
 "use client";
 
-import { ArrowSquareOut, CaretRight, ChatCircleDots, Code, EnvelopeSimple, Bird, Key, Mailbox, PaperPlane, PaperPlaneRight, PaperPlaneTilt } from "@phosphor-icons/react";
+import { ArrowSquareOut, CaretRight, ChatCircleDots, Code, EnvelopeSimple, Key } from "@phosphor-icons/react";
 import type { ProviderKind } from "@hellobox/providers/types";
 import { type FormEvent, type ReactNode, useState } from "react";
-import { AmazonSesIcon, MailgunIcon, PostmarkIcon, ResendIcon } from "@/components/brand-icons";
+import { AmazonSesIcon, BirdIcon, BrevoIcon, MailerSendIcon, MailgunIcon, MailjetIcon, PostmarkIcon, ResendIcon, SendGridIcon } from "@/components/brand-icons";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogPanel, DialogPopup, DialogTitle } from "@/components/ui/dialog";
@@ -20,11 +20,11 @@ const CHOICES: { kind: ProviderKind; name: string; detail: string; icon: ReactNo
   { kind: "resend", name: "Resend", detail: "Sign in to Resend and allow access", icon: <ResendIcon className="size-4 text-foreground" /> },
   { kind: "postmark", name: "Postmark", detail: "Paste an account API token", icon: <PostmarkIcon className="size-5" /> },
   { kind: "mailgun", name: "Mailgun", detail: "Paste your API key and webhook signing key", icon: <MailgunIcon className="size-5 text-[#F06B66]" /> },
-  { kind: "bird", name: "Bird", detail: "Paste an access key", icon: <Bird className="size-5 text-info" /> },
-  { kind: "mailjet", name: "Mailjet", detail: "Paste two keys", icon: <PaperPlane className="size-5 text-warning" /> },
-  { kind: "mailersend", name: "MailerSend", detail: "Paste an API token", icon: <PaperPlaneRight className="size-5 text-primary" /> },
-  { kind: "brevo", name: "Brevo", detail: "Paste an API key", icon: <Mailbox className="size-5 text-success" /> },
-  { kind: "sendgrid", name: "SendGrid", detail: "Paste an API key", icon: <PaperPlaneTilt className="size-5 text-info" /> },
+  { kind: "bird", name: "Bird", detail: "Paste an access key", icon: <BirdIcon className="size-5 rounded-[5px]" /> },
+  { kind: "mailjet", name: "Mailjet", detail: "Paste two keys", icon: <MailjetIcon className="size-5" /> },
+  { kind: "mailersend", name: "MailerSend", detail: "Paste an API token", icon: <MailerSendIcon className="size-5" /> },
+  { kind: "brevo", name: "Brevo", detail: "Paste an API key", icon: <BrevoIcon className="size-5" /> },
+  { kind: "sendgrid", name: "SendGrid", detail: "Paste an API key", icon: <SendGridIcon className="size-5" /> },
   { kind: "smtp", name: "SMTP", detail: "A server, a username and a password", icon: <EnvelopeSimple className="size-5 text-muted-foreground" /> },
   { kind: "custom", name: "Custom provider", detail: "Describe any sending API yourself", icon: <Code className="size-5 text-muted-foreground" /> },
 ];
@@ -153,10 +153,10 @@ export const PASTE_KEY_PROVIDERS: Record<PasteKeyProvider["kind"], PasteKeyProvi
         name: "apiKey",
         label: "Access key",
         placeholder: "bk_us1_xxxxxxxx",
-        help: "In Bird, open Settings, then API keys, and create a key with email and webhook access. Bird shows it once.",
+        help: "In Bird, open Platform tools, then API keys, and create a key with email and webhook access. Bird shows it once.",
       },
     ],
-    link: { href: "https://app.bird.com", label: "Open Bird" },
+    link: { href: "https://bird.com/dashboard/w/api-keys", label: "Open Bird API keys" },
     note: "We use it to read your domains, set up receiving and get delivery events. Your mail sends from your own Bird workspace.",
   },
   mailjet: {

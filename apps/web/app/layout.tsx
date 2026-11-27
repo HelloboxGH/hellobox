@@ -22,7 +22,7 @@ export async function generateMetadata(): Promise<Metadata> {
     metadataBase: siteUrl(),
     applicationName: SITE_NAME,
     title: { default: SITE_NAME, template: `%s · ${SITE_NAME}` },
-    description: "A shared inbox for Amazon SES, Resend, Postmark and Mailgun.",
+    description: "A shared inbox for Amazon SES, Resend, SendGrid, Postmark, Mailgun and more.",
     icons: {
       icon: [
         { url: "/favicon.ico", sizes: "any" },

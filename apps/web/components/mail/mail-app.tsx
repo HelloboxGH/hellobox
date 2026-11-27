@@ -44,7 +44,7 @@ function ConnectPrompt({ data }: { data: Bootstrap }) {
         <EmptyDescription>
           {reconnect
             ? "HelloBox lost access to your provider. Your mail is safe, and new mail will catch up once you reconnect."
-            : "Connect Amazon SES, Resend, Postmark or Mailgun. We import your domains and set up receiving, so your mail starts arriving here."}
+            : "Connect your email provider, like Amazon SES, Resend, SendGrid or Postmark. We import your domains and set up receiving, so your mail starts arriving here."}
         </EmptyDescription>
       </EmptyHeader>
       <EmptyContent>
