@@ -279,7 +279,7 @@ export function ThreadList({
             {bar.canArchive && !bar.inTrash && !bar.inSpam ? (
               <IconAction label="Archive" onClick={() => run({ kind: "folder", folder: "archive" }, picked)}><Archive /></IconAction>
             ) : (
-              <IconAction label="Move to inbox" onClick={() => run(bar.inSpam ? { kind: "spam", value: false } : { kind: "folder", folder: "inbox" }, picked)}><Tray /></IconAction>
+              <IconAction label="Restore" onClick={() => run(bar.inSpam ? { kind: "spam", value: false } : { kind: "folder", folder: "inbox" }, picked)}><Tray /></IconAction>
             )}
             {!bar.inSpam && (
               <IconAction label="Report spam" onClick={() => run({ kind: "spam", value: true }, picked)}><ShieldWarning /></IconAction>

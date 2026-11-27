@@ -591,7 +591,7 @@ export function Reader({
         {thread.folder === "inbox" ? (
           <IconAction label="Archive" shortcut="E" onClick={() => update({ folder: "archive" }, "Archived", true)}><Archive /></IconAction>
         ) : (
-          <IconAction label="Move to inbox" onClick={() => update({ folder: "inbox" }, "Moved to inbox")}><Tray /></IconAction>
+          <IconAction label="Restore" onClick={() => update({ folder: "inbox" }, "Restored")}><Tray /></IconAction>
         )}
         {thread.folder === "spam" ? (
           <Button

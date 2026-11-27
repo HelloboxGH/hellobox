@@ -13,6 +13,7 @@ export * from "./activity";
 export * from "./domains";
 export * from "./takeovers";
 export * from "./flood";
+export * from "./free-mail";
 export * from "./domain-setup";
 export * from "./ingest";
 export * from "./mailbox-access";

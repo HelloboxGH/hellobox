@@ -81,6 +81,8 @@ export async function receiveMessage(request: Request) {
     const result = await receiveFromMx(body, envelope);
     // The domain stopped receiving here between RCPT TO and now.
     if (result.status === "no-recipients") return json({ error: "No recipient receives mail here" }, 422);
+    // The recipient blocked this sender: refused with a 550 so the sender's server bounces it.
+    if (result.status === "blocked") return json({ error: "Sender blocked", reason: "blocked" }, 422);
     return json({ ids: result.ids });
   } catch (error) {
     console.error("[mx] Couldn't store a message:", error);

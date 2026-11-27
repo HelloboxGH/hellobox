@@ -39,6 +39,8 @@ import {
   outgoingTakeovers,
   fitsPlan,
   helloboxMxHost,
+  isCommonMailDomain,
+  parseBlockTarget,
   planDomainCount,
   removeMailbox,
   restoreDomain,
@@ -840,6 +842,28 @@ export const deleteRule = adminAction("/rules/delete")
     return { ok: true };
   });
 
+// Blocks an address or a whole domain. Mail receiving through HelloBox is refused outright
+// (the sender gets a bounce); through a provider it goes to Spam. Blocking a personal mail
+// provider's domain needs a second, explicit yes, since it also blocks everyone else there.
+export const blockSenderValue = adminAction("/senders/block")
+  .input(z.object({ value: z.string().max(320), confirmCommon: z.boolean().optional() }))
+  .handler(async ({ input, ctx }) => {
+    const target = parseBlockTarget(input.value);
+    if (!target) throw badRequest("Enter an address like spam@example.com or a domain like example.com");
+    if (target.kind === "domain" && isCommonMailDomain(target.value) && !input.confirmCommon) {
+      return { blocked: false as const, needsConfirmation: true as const, value: target.value };
+    }
+    const db = getDb();
+    await db
+      .delete(senderLists)
+      .where(and(eq(senderLists.workspaceId, ctx.workspace.id), eq(senderLists.kind, "allowed"), eq(senderLists.value, target.value)));
+    await db
+      .insert(senderLists)
+      .values({ workspaceId: ctx.workspace.id, kind: "blocked", value: target.value })
+      .onConflictDoNothing();
+    return { blocked: true as const, needsConfirmation: false as const, value: target.value };
+  });
+
 export const removeSender = adminAction("/senders/remove")
   .input(z.object({ id: z.string() }))
   .handler(async ({ input, ctx }) => {
@@ -1007,6 +1031,7 @@ export const workspaceActions = {
   "/rules/create": createRule,
   "/rules/delete": deleteRule,
   "/senders/remove": removeSender,
+  "/senders/block": blockSenderValue,
   "/suppressions/list": listSuppressedAddresses,
   "/suppressions/remove": removeSuppressedAddress,
   "/labels/create": createLabel,

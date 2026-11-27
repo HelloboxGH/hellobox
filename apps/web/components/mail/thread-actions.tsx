@@ -313,7 +313,7 @@ export function ThreadActionItems({
       {!compact && (
         <>
           {state.canArchive && <K.Item onClick={act({ kind: "folder", folder: "archive" })}><Archive /> Archive</K.Item>}
-          {state.outOfInbox && !state.inSpam && <K.Item onClick={act({ kind: "folder", folder: "inbox" })}><Tray /> Move to inbox</K.Item>}
+          {state.outOfInbox && !state.inSpam && <K.Item onClick={act({ kind: "folder", folder: "inbox" })}><Tray /> Restore</K.Item>}
           {state.inSpam
             ? <K.Item onClick={act({ kind: "spam", value: false })}><CheckCircle /> Not spam</K.Item>
             : <K.Item onClick={act({ kind: "spam", value: true })}><ShieldWarning /> Report spam</K.Item>}

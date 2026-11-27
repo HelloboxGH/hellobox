@@ -184,7 +184,15 @@ exports.hook_queue = function (next, connection) {
       .then((response) => {
         const result = outcome(response.status)
         if (result === 'ok') return next(OK, 'Delivered to HelloBox')
-        if (result === 'deny') return next(DENY, 'No mailbox here for that domain')
+        if (result === 'deny') {
+          // A blocked sender gets its own refusal, which their server turns into a bounce.
+          return response
+            .json()
+            .catch(() => ({}))
+            .then((body) =>
+              next(DENY, body && body.reason === 'blocked' ? '5.7.1 Message refused: the recipient has blocked this sender' : 'No mailbox here for that domain'),
+            )
+        }
         connection.logwarn(this, `HelloBox answered ${response.status}`)
         next(DENYSOFT, 'Try again later')
       })

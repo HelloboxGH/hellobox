@@ -1,9 +1,9 @@
 import { resolveMx } from "node:dns/promises";
 import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { setting } from "@hellobox/config";
-import { connections, domains, getDb, mailboxes, workspaces } from "@hellobox/db";
+import { connections, domains, getDb, mailboxes, senderLists, workspaces } from "@hellobox/db";
 import type { Authentication } from "@hellobox/providers";
-import { and, eq, isNull, ne, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, ne, sql } from "drizzle-orm";
 import { authenticate } from "mailauth";
 import { domainKey, receivingDomainIds } from "./domains";
 import { receivePushedEmail } from "./pushed";
@@ -101,7 +101,27 @@ async function hasMailbox(workspaceId: string, address: string) {
   return Boolean(row);
 }
 
+// Whether the workspace blocked this sender, by address or by domain. A null sender (a
+// bounce) can't be blocked.
+async function senderBlocked(workspaceId: string, mailFrom: string) {
+  const address = mailFrom.trim().toLowerCase();
+  if (!looksLikeAddress(address)) return false;
+  const [row] = await getDb()
+    .select({ id: senderLists.id })
+    .from(senderLists)
+    .where(
+      and(
+        eq(senderLists.workspaceId, workspaceId),
+        eq(senderLists.kind, "blocked"),
+        inArray(senderLists.value, [address, domainOf(address)]),
+      ),
+    )
+    .limit(1);
+  return Boolean(row);
+}
+
 export interface MxDeps {
+  senderBlocked: typeof senderBlocked;
   receivingCopies: typeof receivingCopies;
   hasMailbox: typeof hasMailbox;
   receive: typeof receivePushedEmail;
@@ -184,7 +204,7 @@ async function authenticateMail(raw: Uint8Array, envelope: MxEnvelope): Promise<
   }
 }
 
-const defaultDeps: MxDeps = { receivingCopies, hasMailbox, receive: receivePushedEmail, authenticate: authenticateMail };
+const defaultDeps: MxDeps = { senderBlocked, receivingCopies, hasMailbox, receive: receivePushedEmail, authenticate: authenticateMail };
 
 // The same message and recipients always get the same id, so a retry after a timeout
 // doesn't make a second copy.
@@ -193,7 +213,10 @@ export function helloboxEmailId(raw: Uint8Array, recipients: string[]) {
   return `${HELLOBOX_ID_PREFIX}${hash.slice(0, 48)}`;
 }
 
-export type MxDelivery = { status: "stored"; ids: string[] } | { status: "no-recipients" };
+// "blocked": every workspace that takes these recipients blocked the sender. The mail
+// server refuses it with a 550, so the sender's own server bounces it to them. Nothing is
+// stored and we send nothing ourselves.
+export type MxDelivery = { status: "stored"; ids: string[] } | { status: "no-recipients" } | { status: "blocked" };
 
 // Stores the message once per connection that takes one of its recipients, then queues
 // ingest. Throws when anything fails, so the mail server answers 451 and the sender retries;
@@ -212,6 +235,10 @@ export async function receiveFromMx(raw: Uint8Array, envelope: MxEnvelope, deps:
     }
   }
   if (!groups.size) return { status: "no-recipients" };
+  for (const [connectionId, group] of groups) {
+    if (await deps.senderBlocked(group.workspaceId, envelope.mailFrom)) groups.delete(connectionId);
+  }
+  if (!groups.size) return { status: "blocked" };
 
   const authentication = await deps.authenticate(raw, envelope);
   const ids: string[] = [];

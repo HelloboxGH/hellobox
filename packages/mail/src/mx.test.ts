@@ -67,9 +67,10 @@ const copy = (connectionId: string, workspaceId: string, name: string, bouncesEn
   bouncesEnabled,
 });
 
-function deps(byDomain: Record<string, Copy[]>, fail = false, mailboxes: string[] = []) {
+function deps(byDomain: Record<string, Copy[]>, fail = false, mailboxes: string[] = [], blocked: string[] = []) {
   const received: Parameters<MxDeps["receive"]>[0][] = [];
   const value: MxDeps = {
+    senderBlocked: async (workspaceId) => blocked.includes(workspaceId),
     receivingCopies: async (name) => byDomain[name] ?? [],
     hasMailbox: async (_workspaceId, address) => mailboxes.includes(address),
     receive: async (email) => {
@@ -114,6 +115,24 @@ describe("receiveFromMx", () => {
     const { value, received } = deps({});
     expect(await receiveFromMx(body, envelope(["team@acme.example"]), value)).toEqual({ status: "no-recipients" });
     expect(received).toHaveLength(0);
+  });
+
+  it("refuses a blocked sender without storing anything", async () => {
+    const { value, received } = deps({ "acme.example": [copy("c1", "w1", "acme.example")] }, false, [], ["w1"]);
+    expect(await receiveFromMx(body, envelope(["team@acme.example"]), value)).toEqual({ status: "blocked" });
+    expect(received).toHaveLength(0);
+  });
+
+  it("still delivers to workspaces that didn't block the sender", async () => {
+    const { value, received } = deps(
+      { "acme.example": [copy("c1", "w1", "acme.example")], "other.example": [copy("c2", "w2", "other.example")] },
+      false,
+      [],
+      ["w1"],
+    );
+    const result = await receiveFromMx(body, envelope(["team@acme.example", "x@other.example"]), value);
+    expect(result.status).toBe("stored");
+    expect(received.map((email) => email.connectionId)).toEqual(["c2"]);
   });
 
   it("throws when storing fails, so the sender retries", async () => {

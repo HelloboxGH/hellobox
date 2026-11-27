@@ -2,7 +2,7 @@
 
 import {
   ArrowElbowDownRight, ArrowLeft, BellRinging, ChatCircleText, Chats, DownloadSimple, Globe, Key, LockKey, DotsThree, ListChecks, LockSimple, LockSimpleOpen, Play, Plugs, Prohibit, Robot, ShieldCheck, Sparkle,
-  Trash, Tray, UserCircle, UsersThree,
+  Trash, Tray, UserCircle, UsersThree, Warning,
 } from "@phosphor-icons/react";
 import Link from "next/link";
 import { type FormEvent, type ReactNode, useCallback, useEffect, useState } from "react";
@@ -1103,6 +1103,9 @@ function RulesTab({ admin }: { admin: boolean }) {
   const run = useRun();
   const [state, setState] = useState<Awaited<ReturnType<typeof call<"/rules/list">>> | null>(null);
   const [domain, setDomain] = useState("");
+  const [blockValue, setBlockValue] = useState("");
+  // A personal mail provider's domain waits here for a second yes.
+  const [confirmCommon, setConfirmCommon] = useState<string | null>(null);
   const [category, setCategory] = useState<(typeof CATEGORIES)[number]["value"]>("notifications");
   const load = useCallback(() => call("/rules/list").then(setState), []);
   useEffect(() => {
@@ -1144,7 +1147,7 @@ function RulesTab({ admin }: { admin: boolean }) {
           <Button type="submit" variant="outline">Add rule</Button>
         </Form>}
       </Section>
-      <Section title="Sender lists" description="Mail from a blocked sender goes straight to Spam. You block a sender after Report spam, allow one with Not spam, and add one here when you show their images.">
+      <Section title="Sender lists" description="Mail from a blocked address or domain is refused when it arrives through HelloBox's own mail server (the sender gets a bounce), and goes straight to Spam when it arrives through your provider. You also block a sender after Report spam, allow one with Not spam, and add one here when you show their images.">
         <ul className="divide-y">
           {state?.senders.map((sender) => (
             <li key={sender.id} className="flex items-center gap-2 py-2 text-sm">
@@ -1155,6 +1158,48 @@ function RulesTab({ admin }: { admin: boolean }) {
           ))}
           {state?.senders.length === 0 && <li className="py-2 text-muted-foreground text-sm">Nothing here yet.</li>}
         </ul>
+        {admin && (
+          <>
+            <Form
+              className="flex flex-wrap gap-2"
+              onSubmit={async (event: FormEvent<HTMLFormElement>) => {
+                event.preventDefault();
+                let asked: string | null = null;
+                const done = await run(async () => {
+                  const result = await call("/senders/block", { value: blockValue });
+                  if (result.needsConfirmation) asked = result.value;
+                });
+                if (!done) return;
+                if (asked) return setConfirmCommon(asked);
+                setBlockValue("");
+                load();
+              }}
+            >
+              <Input className="min-w-44 flex-1" required aria-label="Address or domain to block" placeholder="spam@example.com or example.com" value={blockValue} onChange={(e) => { setBlockValue(e.target.value); setConfirmCommon(null); }} />
+              <Button type="submit" variant="outline">Block</Button>
+            </Form>
+            {confirmCommon && (
+              <Alert variant="warning" className="rounded-xl">
+                <Warning />
+                <AlertDescription className="space-y-2">
+                  <span className="block">
+                    {confirmCommon} is a personal mail provider used by millions of people, probably including customers and contacts of yours. Blocking the domain blocks all of them. Block one address instead, unless you mean it.
+                  </span>
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    onClick={async () => {
+                      const done = await run(() => call("/senders/block", { value: confirmCommon, confirmCommon: true }));
+                      if (done) { setConfirmCommon(null); setBlockValue(""); load(); }
+                    }}
+                  >
+                    Block {confirmCommon} anyway
+                  </Button>
+                </AlertDescription>
+              </Alert>
+            )}
+          </>
+        )}
       </Section>
       <NeverSpamSection />
     </div>
