@@ -2,7 +2,7 @@
 
 import {
   ArrowElbowDownRight, ArrowLeft, BellRinging, ChatCircleText, Chats, DownloadSimple, Globe, Key, LockKey, DotsThree, ListChecks, LockSimple, LockSimpleOpen, Play, Plugs, Prohibit, Robot, ShieldCheck, Sparkle,
-  Trash, Tray, UserCircle, UsersThree, Warning,
+  Trash, Tray, UserCircle, UsersThree,
 } from "@phosphor-icons/react";
 import Link from "next/link";
 import { type FormEvent, type ReactNode, useCallback, useEffect, useState } from "react";
@@ -1148,27 +1148,7 @@ function RulesTab({ admin }: { admin: boolean }) {
           <Button type="submit" variant="outline">Add rule</Button>
         </Form>}
       </Section>
-      <Section title="Sender lists" description="Mail from a blocked address or domain is refused when it arrives through HelloBox's own mail server (the sender gets a bounce), and goes straight to Spam when it arrives through your provider. You also block a sender after Report spam, allow one with Not spam, and add one here when you show their images.">
-        <Button variant="outline" size="sm" className="self-start" onClick={() => setSendersOpen(true)}>
-          Show blocked senders and domains{state ? ` (${state.senders.length})` : ""}
-        </Button>
-        <Dialog open={sendersOpen} onOpenChange={setSendersOpen}>
-          <DialogPopup className="sm:max-w-xl">
-            <DialogHeader>
-              <DialogTitle>Sender lists</DialogTitle>
-              <DialogDescription>Blocked, allowed and image-allowed senders and domains.</DialogDescription>
-            </DialogHeader>
-            <DialogPanel className="space-y-3">
-        <ul className="divide-y">
-          {state?.senders.map((sender) => (
-            <li key={sender.id} className="flex items-center gap-2 py-2 text-sm">
-              <span className="min-w-0 flex-1 truncate text-foreground">{sender.value}</span>
-              <Badge variant={sender.kind === "blocked" ? "error" : "secondary"} className="capitalize">{sender.kind.replace("_", " ")}</Badge>
-              {admin && <Button size="sm" variant="ghost" onClick={async () => { await run(() => call("/senders/remove", { id: sender.id })); load(); }}>{sender.kind === "blocked" ? "Unblock" : "Remove"}</Button>}
-            </li>
-          ))}
-          {state?.senders.length === 0 && <li className="py-2 text-muted-foreground text-sm">Nothing here yet.</li>}
-        </ul>
+      <Section title="Sender lists" description="Block an address or a whole domain. HelloBox's own mail server refuses their mail, so the sender gets a bounce. Mail that comes through your provider goes to Spam instead.">
         {admin && (
           <>
             <Form
@@ -1189,28 +1169,52 @@ function RulesTab({ admin }: { admin: boolean }) {
               <Input className="min-w-44 flex-1" required aria-label="Address or domain to block" placeholder="spam@example.com or example.com" value={blockValue} onChange={(e) => { setBlockValue(e.target.value); setConfirmCommon(null); }} />
               <Button type="submit" variant="outline">Block</Button>
             </Form>
-            {confirmCommon && (
-              <Alert variant="warning" className="rounded-xl">
-                <Warning />
-                <AlertDescription className="space-y-2">
-                  <span className="block">
-                    {confirmCommon} is a personal mail provider used by millions of people, probably including customers and contacts of yours. Blocking the domain blocks all of them. Block one address instead, unless you mean it.
-                  </span>
+            <AlertDialog open={confirmCommon !== null} onOpenChange={(open) => { if (!open) setConfirmCommon(null); }}>
+              <AlertDialogPopup>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Block everyone at {confirmCommon}?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    {confirmCommon} is a personal mail provider used by millions of people, probably including customers and contacts of yours. Blocking the
+                    domain refuses mail from all of them. To stop one person, block their address instead.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogClose render={<Button variant="ghost" />}>Cancel</AlertDialogClose>
                   <Button
-                    size="sm"
                     variant="destructive"
                     onClick={async () => {
-                      const done = await run(() => call("/senders/block", { value: confirmCommon, confirmCommon: true }));
+                      const done = await run(() => call("/senders/block", { value: confirmCommon ?? "", confirmCommon: true }));
                       if (done) { setConfirmCommon(null); setBlockValue(""); load(); }
                     }}
                   >
-                    Block {confirmCommon} anyway
+                    Block {confirmCommon}
                   </Button>
-                </AlertDescription>
-              </Alert>
-            )}
+                </AlertDialogFooter>
+              </AlertDialogPopup>
+            </AlertDialog>
           </>
         )}
+        <Button variant="outline" size="sm" className="self-start" onClick={() => setSendersOpen(true)}>
+          Show blocked senders and domains{state ? ` (${state.senders.length})` : ""}
+        </Button>
+        <Dialog open={sendersOpen} onOpenChange={setSendersOpen}>
+          <DialogPopup className="sm:max-w-xl">
+            <DialogHeader>
+              <DialogTitle>Sender lists</DialogTitle>
+              <DialogDescription>Blocked senders and domains come first, then the ones you allowed.</DialogDescription>
+            </DialogHeader>
+            <DialogPanel className="space-y-3">
+        <ul className="divide-y">
+          {state?.senders.toSorted((a, b) => Number(b.kind === "blocked") - Number(a.kind === "blocked")).map((sender) => (
+            <li key={sender.id} className="flex items-center gap-2 py-2 text-sm">
+              <span className="min-w-0 flex-1 truncate text-foreground">{sender.value}</span>
+              <Badge variant={sender.kind === "blocked" ? "error" : "secondary"} className="capitalize">{sender.kind.replace("_", " ")}</Badge>
+              {admin && <Button size="sm" variant="ghost" onClick={async () => { await run(() => call("/senders/remove", { id: sender.id })); load(); }}>{sender.kind === "blocked" ? "Unblock" : "Remove"}</Button>}
+            </li>
+          ))}
+          {state?.senders.length === 0 && <li className="py-2 text-muted-foreground text-sm">Nothing here yet.</li>}
+        </ul>
+        
                   </DialogPanel>
           </DialogPopup>
         </Dialog>
