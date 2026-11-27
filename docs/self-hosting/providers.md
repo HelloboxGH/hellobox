@@ -1,7 +1,7 @@
 # Connect your email provider
 
 HelloBox doesn't send or receive email by itself. It works through your account at an email
-provider: Postmark, Mailgun, Resend, Amazon SES, or any SMTP server. Your mail keeps going through that
+provider: Postmark, Mailgun, Resend, Amazon SES, SendGrid, or any SMTP server. Your mail keeps going through that
 account, under your name and reputation; HelloBox shows it to your team and sends the
 replies.
 
@@ -48,6 +48,7 @@ If you already send with one of these, use it. If you're choosing:
 | **Mailgun** | Easy. Paste two keys. | Receives for many domains on one account. |
 | **Resend** | Medium. Register an app once with one command, then sign in. | Domains and receiving are managed in Resend's own dashboard. |
 | **Amazon SES** | The most work: about 30 minutes in AWS, once. | The cheapest at volume. New accounts start in a *sandbox* and need AWS's approval to send to anyone. |
+| **SendGrid** | Easy. Paste one key. | Receives for many domains. Each receiving domain's MX points at SendGrid. The free plan allows one events webhook. |
 | **SMTP** | Easy. A server, a username and a password. | Only sends, so it needs HelloBox's own mail server to receive. Sent mail shows *Sent*, never *Delivered*, and campaigns aren't available. |
 
 You can connect more than one provider to a workspace later.
@@ -396,6 +397,26 @@ Your existing mail stays in HelloBox. To end HelloBox's access completely, also 
 
 For anything else about SES itself, see [AWS's SES guide](https://docs.aws.amazon.com/ses/latest/dg/Welcome.html).
 
+## SendGrid
+
+**What you need:** a SendGrid account and an API key with **Full Access**. HelloBox uses it to
+read your domains, set up receiving and add the delivery events webhook.
+
+1. In SendGrid, open **Settings → API Keys → Create API Key**, choose **Full Access**, and copy
+   the key. SendGrid shows it once. EU accounts work too: HelloBox finds the region.
+2. In HelloBox, open **Settings → Domains → Connect a provider → SendGrid**, paste the key and
+   press **Connect**.
+3. Your authenticated domains appear. **Add domain** authenticates a new one in SendGrid.
+4. On each domain you want to receive on, turn on **Receiving**. HelloBox adds an Inbound Parse
+   setting for it, and shows the MX record (`mx.sendgrid.net`) to add.
+
+HelloBox also adds a signed events webhook, so sent mail shows *Delivered*, bounces and spam
+reports. SendGrid limits events webhooks by plan; if yours are all in use, the connection works
+without one and HelloBox says so. Free one in SendGrid, then **Connect again**.
+
+SendGrid keeps no copy of received mail, so HelloBox must be reachable when it arrives. SendGrid
+retries for up to three days.
+
 ## SMTP
 
 **What you need:** an SMTP server you can send through with a username and password, such as
@@ -423,7 +444,7 @@ If the password changes, the connection shows **Connect again**.
 ## Set up your domains
 
 After you connect, **Settings → Domains** lists the domains in your provider account. For
-Postmark, Mailgun and SES, **Add domain** adds a new one; for Resend, add it in Resend. For
+Postmark, Mailgun, SES and SendGrid, **Add domain** adds a new one; for Resend, add it in Resend. For
 SMTP, add each domain you send from.
 
 ### Add the DNS records
@@ -489,6 +510,7 @@ address private.
 | Mailgun | `/api/webhooks/mailgun/<connection>/inbound` and `/events` |
 | Resend | `/api/webhooks/resend/<connection>` |
 | Amazon SES | `/api/webhooks/ses/<connection>/inbound` and `/events` |
+| SendGrid | `/api/webhooks/sendgrid/<connection>/inbound` and `/events` |
 
 If you change `APP_URL` later, your provider still calls the old addresses: press
 **Reconnect** (or **Connect again**) on each connection.

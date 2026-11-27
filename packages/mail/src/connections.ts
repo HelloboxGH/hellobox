@@ -4,12 +4,14 @@ import { getExtensions } from "@hellobox/extensions";
 import {
   isMailgunAuthError,
   isPostmarkAuthError,
+  isSendgridAuthError,
   isSmtpAuthError,
   MailgunProvider,
   PROVIDER_INFO,
   PostmarkProvider,
   ResendProvider,
   RoleAccessError,
+  SendgridProvider,
   SesProvider,
   SmtpProvider,
   type MailProvider,
@@ -120,6 +122,18 @@ export function mailgunProviderFor(connection: Connection) {
   });
 }
 
+export function sendgridProviderFor(connection: Connection) {
+  const { sendgrid } = connection.config;
+  if (!sendgrid || !connection.accessTokenEnc) throw new Error("This SendGrid connection hasn't finished connecting");
+  return new SendgridProvider({
+    workspaceId: connection.workspaceId,
+    connectionId: connection.id,
+    apiKey: decrypt(connection.accessTokenEnc),
+    region: sendgrid.region,
+    receiving: sendgrid.receiving,
+  });
+}
+
 export function smtpProviderFor(connection: Connection) {
   const { smtp } = connection.config;
   if (!smtp || !connection.accessTokenEnc) throw new Error("This SMTP connection hasn't finished connecting");
@@ -141,6 +155,8 @@ export function providerFor(connection: Connection): MailProvider {
       return mailgunProviderFor(connection);
     case "smtp":
       return smtpProviderFor(connection);
+    case "sendgrid":
+      return sendgridProviderFor(connection);
     default: {
       // A kind cloud implements (the public demo's).
       const make = getExtensions().mail?.providers?.[connection.provider];
@@ -171,6 +187,9 @@ export async function tearDownConnection(connection: Connection) {
         return;
       case "mailgun":
         if (connection.status === "active") await mailgunProviderFor(connection).disconnect(connection.webhookId);
+        return;
+      case "sendgrid":
+        if (connection.status === "active") await sendgridProviderFor(connection).disconnect(connection.webhookId);
         return;
       // Nothing was set up at the server.
       case "smtp":
@@ -205,6 +224,7 @@ export function grantErrorProvider(error: unknown): ProviderKind | null {
   if (isPostmarkAuthError(error)) return "postmark";
   if (isMailgunAuthError(error)) return "mailgun";
   if (isSmtpAuthError(error)) return "smtp";
+  if (isSendgridAuthError(error)) return "sendgrid";
   if (error instanceof OAuthGrantError) return "resend";
   // "Access token is missing required scopes: full_access", or a token Resend no longer knows.
   if (error instanceof ResendApiError && (error.status === 401 || (error.status === 403 && /scope/i.test(error.message)))) {

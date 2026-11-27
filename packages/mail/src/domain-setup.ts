@@ -12,6 +12,7 @@ import {
   setPostmarkReceiving,
 } from "./postmark";
 import { addSmtpDomain, smtpDomainSetup } from "./smtp";
+import { addSendgridDomain, applySendgridDomainDns, sendgridDomainSetup, setSendgridReceiving } from "./sendgrid";
 import { addResendReceivingDomain, applyResendDomainDns, resendDomainSetup, verifyResendDomain } from "./resend-domains";
 import {
   addSesDomain,
@@ -36,6 +37,7 @@ export async function addProviderDomain(connectionId: string, workspaceId: strin
   if (kind === "postmark") return addPostmarkDomain(connectionId, workspaceId, domain);
   if (kind === "mailgun") return addMailgunDomain(connectionId, workspaceId, domain);
   if (kind === "smtp") return addSmtpDomain(connectionId, workspaceId, domain);
+  if (kind === "sendgrid") return addSendgridDomain(connectionId, workspaceId, domain);
   return addResendReceivingDomain(connectionId, workspaceId, domain);
 }
 
@@ -45,6 +47,7 @@ export async function providerDomainSetup(connectionId: string, workspaceId: str
   if (kind === "postmark") return postmarkDomainSetup(connectionId, workspaceId, domain);
   if (kind === "mailgun") return mailgunDomainSetup(connectionId, workspaceId, domain);
   if (kind === "smtp") return smtpDomainSetup(connectionId, workspaceId, domain);
+  if (kind === "sendgrid") return sendgridDomainSetup(connectionId, workspaceId, domain);
   return resendDomainSetup(connectionId, workspaceId, domain);
 }
 
@@ -55,6 +58,7 @@ export async function applyProviderDomainDns(connectionId: string, workspaceId: 
   if (kind === "mailgun") return applyMailgunDomainDns(connectionId, workspaceId, domain, host);
   // Nothing to write: an SMTP server's records are set up wherever the server says.
   if (kind === "smtp") return smtpDomainSetup(connectionId, workspaceId, domain);
+  if (kind === "sendgrid") return applySendgridDomainDns(connectionId, workspaceId, domain, host);
   return applyResendDomainDns(connectionId, workspaceId, domain, host);
 }
 
@@ -68,6 +72,8 @@ export async function refreshProviderDomain(connectionId: string, workspaceId: s
     await activatePendingPostmarkInbound(connectionId);
   }
   if (kind === "mailgun") await mailgunDomainSetup(connectionId, workspaceId, domain);
+  // Reading the records asks SendGrid to validate again.
+  if (kind === "sendgrid") await sendgridDomainSetup(connectionId, workspaceId, domain);
   if (kind === "resend") await verifyResendDomain(connectionId, workspaceId, domain);
   await syncDomains(connectionId, workspaceId, await domainLimitFor(workspaceId));
   const [row] = await getDb()
@@ -132,6 +138,11 @@ export async function setupReceivingSubdomain(connectionId: string, workspaceId:
   if (connection.provider === "mailgun") {
     const added = await addMailgunDomain(connectionId, workspaceId, subdomain);
     const result = await setMailgunReceiving(connectionId, workspaceId, subdomain, true);
+    return { setup: combine(added, result.mx), waiting: false };
+  }
+  if (connection.provider === "sendgrid") {
+    const added = await addSendgridDomain(connectionId, workspaceId, subdomain);
+    const result = await setSendgridReceiving(connectionId, workspaceId, subdomain, true);
     return { setup: combine(added, result.mx), waiting: false };
   }
   return { setup: await addResendReceivingDomain(connectionId, workspaceId, subdomain), waiting: false };

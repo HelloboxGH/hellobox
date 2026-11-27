@@ -102,6 +102,7 @@ export const WORKSPACE_EVENTS = [
   // Providers added from 2026-11-27 share these, with the provider in the details.
   "connection.connected",
   "connection.reconnected",
+  "domain.receiving_changed",
   "suppression.removed",
   "sender.blocked",
   "agent.connected",

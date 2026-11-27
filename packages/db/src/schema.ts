@@ -246,6 +246,15 @@ export interface ConnectionConfig {
     region: "us" | "eu";
     routes: Record<string, string>;
   };
+  // SendGrid: the host its key works on, and the domains with an Inbound Parse setting of
+  // ours. The API key is in accessTokenEnc, the events webhook's public key in
+  // webhookSecretEnc, and the token in our Inbound Parse address in secondaryTokenEnc.
+  sendgrid?: {
+    region: "global" | "eu";
+    receiving: string[];
+    // False when SendGrid wouldn't take another events webhook (its plans cap them).
+    events: boolean;
+  };
   // SMTP: the server and who signs in. The password is in accessTokenEnc. The server can't
   // list domains, so these are the ones the customer added.
   smtp?: {

@@ -43,3 +43,4 @@ export * from "./ses";
 export * from "./safe-url";
 export * from "./notifications";
 export * from "./smtp";
+export * from "./sendgrid";

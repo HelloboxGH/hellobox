@@ -290,6 +290,9 @@ export const bootstrap = workspaceAction("/app/bootstrap").handler(async ({ ctx 
       mailgunRegion: config.mailgun?.region ?? null,
       // SMTP: the server, shown next to the connection. Never the username or password.
       smtpHost: config.smtp?.host ?? null,
+      // SendGrid: the EU host, and whether it has our events webhook.
+      sendgridRegion: config.sendgrid?.region ?? null,
+      sendgridEvents: config.sendgrid?.events ?? null,
     })),
     providers: { ses: isAwsBrokerConfigured(), cloudflare: isCloudflareConfigured() },
     // DNS hosts the workspace let us write records to.

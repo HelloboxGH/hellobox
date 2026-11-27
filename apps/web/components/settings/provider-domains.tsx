@@ -269,7 +269,7 @@ const PROVIDER_STEP: Record<ProviderKind, (subdomain: string) => string> = {
   demo: () => "Not available in the demo.",
   // Not built yet (plans/PROVIDERS.md). Each one's PR says what it does here.
   smtp: (subdomain) => `${subdomain} receives with HelloBox.`,
-  sendgrid: (subdomain) => `We add ${subdomain} to SendGrid.`,
+  sendgrid: (subdomain) => `We authenticate ${subdomain} in SendGrid, with an Inbound Parse setting that sends its mail to HelloBox.`,
   brevo: (subdomain) => `We add ${subdomain} to Brevo.`,
   mailersend: (subdomain) => `We add ${subdomain} to MailerSend.`,
   mailjet: (subdomain) => `We add ${subdomain} to Mailjet.`,

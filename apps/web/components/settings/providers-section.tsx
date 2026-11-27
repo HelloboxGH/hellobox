@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowSquareOut, Check, EnvelopeSimple, HourglassMedium, Plus, Warning } from "@phosphor-icons/react";
+import { ArrowSquareOut, Check, EnvelopeSimple, HourglassMedium, PaperPlaneTilt, Plus, Warning } from "@phosphor-icons/react";
 import { type FormEvent, useCallback, useEffect, useState } from "react";
 import { SES_REGIONS, stackConsoleUrl, type SesRegion } from "@hellobox/providers/connect";
 import { PROVIDER_INFO, type ProviderKind } from "@hellobox/providers/types";
@@ -86,6 +86,11 @@ export function ProvidersSection({ data, refresh, admin }: { data: Bootstrap; re
     const broken = data.connections.find((c) => c.provider === "mailgun" && c.status === "needs_reconnect");
     return { reconnectId: broken?.id };
   });
+  const [sendgrid, setSendgrid] = useState<{ reconnectId?: string } | null>(() => {
+    if (requested !== "sendgrid" || !admin) return null;
+    const broken = data.connections.find((c) => c.provider === "sendgrid" && c.status === "needs_reconnect");
+    return { reconnectId: broken?.id };
+  });
   const [smtp, setSmtp] = useState<{ reconnectId?: string } | null>(() => {
     if (requested !== "smtp" || !admin) return null;
     const broken = data.connections.find((c) => c.provider === "smtp" && c.status === "needs_reconnect");
@@ -103,7 +108,7 @@ export function ProvidersSection({ data, refresh, admin }: { data: Bootstrap; re
     // Offered as each one is built (plans/PROVIDERS.md).
     // Its domains receive with HelloBox, so only where this HelloBox runs a mail server.
     smtp: data.helloboxMx ? "ready" : "hidden",
-    sendgrid: "hidden",
+    sendgrid: "ready",
     brevo: "hidden",
     mailersend: "hidden",
     mailjet: "hidden",
@@ -117,6 +122,7 @@ export function ProvidersSection({ data, refresh, admin }: { data: Bootstrap; re
     else if (kind === "postmark") setPostmark({});
     else if (kind === "mailgun") setMailgun({});
     else if (kind === "smtp") setSmtp({});
+    else if (kind === "sendgrid") setSendgrid({});
     // An API route that redirects to Resend, so a full page load.
     else if (kind === "resend") window.location.assign(new URL(connectHref, window.location.origin));
   }
@@ -161,6 +167,15 @@ export function ProvidersSection({ data, refresh, admin }: { data: Bootstrap; re
             refresh={refresh}
             admin={admin}
             onReconnect={() => setMailgun({ reconnectId: connection.id })}
+          />
+        ) : connection.provider === "sendgrid" ? (
+          <SendgridConnection
+            key={connection.id}
+            connection={connection}
+            data={data}
+            refresh={refresh}
+            admin={admin}
+            onReconnect={() => setSendgrid({ reconnectId: connection.id })}
           />
         ) : connection.provider === "smtp" ? (
           <SmtpConnection
@@ -214,6 +229,12 @@ export function ProvidersSection({ data, refresh, admin }: { data: Bootstrap; re
         open={mailgun !== null}
         reconnectId={mailgun?.reconnectId}
         onOpenChange={(open) => !open && setMailgun(null)}
+        refresh={refresh}
+      />
+      <SendgridConnectDialog
+        open={sendgrid !== null}
+        reconnectId={sendgrid?.reconnectId}
+        onOpenChange={(open) => !open && setSendgrid(null)}
         refresh={refresh}
       />
       <SmtpConnectDialog
@@ -1126,6 +1147,92 @@ function SmtpConnection({ connection, data, refresh, admin, onReconnect }: {
           canAdd
           emptyText="Add the domains you send from. Each one then receives with HelloBox."
           receiving={() => ({ on: false })}
+        />
+      )}
+    </div>
+  );
+}
+
+function SendgridConnectDialog({ open, onOpenChange, reconnectId, refresh }: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  reconnectId?: string;
+  refresh: () => void;
+}) {
+  const run = useRun();
+
+  async function connect(values: Record<string, string>) {
+    let events = true;
+    const done = await run(async () => {
+      events = (await call("/connections/sendgrid/connect", { apiKey: values.apiKey ?? "", connectionId: reconnectId })).events;
+    });
+    if (!done) return;
+    if (events) notify(reconnectId ? "SendGrid is connected again" : "SendGrid is connected");
+    else notifyInfo("SendGrid is connected, without delivery events: your plan's events webhooks are all in use. Sent mail shows Sent, not Delivered.");
+    refresh();
+    onOpenChange(false);
+  }
+
+  return <PasteKeyDialog provider={PASTE_KEY_PROVIDERS.sendgrid} open={open} onOpenChange={onOpenChange} onSubmit={connect} />;
+}
+
+function SendgridConnection({ connection, data, refresh, admin, onReconnect }: {
+  connection: Connection;
+  data: Bootstrap;
+  refresh: () => void;
+  admin: boolean;
+  onReconnect: () => void;
+}) {
+  const run = useRun();
+
+  async function setReceiving(domain: string, on: boolean) {
+    return (await call("/connections/sendgrid/receiving", { connectionId: connection.id, domain, on })).mx;
+  }
+
+  return (
+    <div className="space-y-3 rounded-2xl border p-3">
+      <ProviderRow
+        icon={<PaperPlaneTilt className="size-5 text-info" />}
+        name="SendGrid"
+        detail={connection.sendgridRegion === "eu" ? "EU" : undefined}
+        status={connection.status}
+      >
+        {admin && connection.status === "needs_reconnect" && <Button size="sm" onClick={onReconnect}>Connect again</Button>}
+        {admin && (
+          <DisconnectButton
+            title="Disconnect SendGrid?"
+            description="New mail stops arriving and sending stops. Your existing mail stays here. We remove our Inbound Parse settings and events webhook; your domains stay in SendGrid."
+            onConfirm={async () => {
+              await run(() => call("/connections/disconnect", { id: connection.id }), "Disconnected");
+              refresh();
+            }}
+          />
+        )}
+      </ProviderRow>
+
+      {connection.status === "needs_reconnect" && (
+        <Alert variant="warning" className="rounded-xl">
+          <Warning />
+          <AlertDescription>SendGrid stopped accepting the API key, so it was probably deleted. Connect again with a new key.</AlertDescription>
+        </Alert>
+      )}
+      {connection.status === "active" && connection.sendgridEvents === false && (
+        <Alert variant="info" className="rounded-xl">
+          <Warning />
+          <AlertDescription>No delivery events: SendGrid&apos;s plan limit on events webhooks was reached. Sent mail shows Sent, not Delivered. Free one in SendGrid, then connect again.</AlertDescription>
+        </Alert>
+      )}
+
+      {connection.status === "active" && (
+        <DomainList
+          connection={connection}
+          data={data}
+          admin={admin}
+          refresh={refresh}
+          canAdd
+          emptyText="No authenticated domains in SendGrid yet. Add one to send and receive from it."
+          receiving={(domain) => ({ on: domain.receivingEnabled })}
+          setReceiving={setReceiving}
         />
       )}
     </div>
