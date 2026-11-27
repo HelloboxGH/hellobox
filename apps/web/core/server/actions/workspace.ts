@@ -295,6 +295,8 @@ export const bootstrap = workspaceAction("/app/bootstrap").handler(async ({ ctx 
       sendgridEvents: config.sendgrid?.events ?? null,
       // Brevo: whether it has our events webhook.
       brevoEvents: config.brevo?.events ?? null,
+      // MailerSend: whether every domain has our events webhook.
+      mailersendEvents: config.mailersend?.events ?? null,
     })),
     providers: { ses: isAwsBrokerConfigured(), cloudflare: isCloudflareConfigured() },
     // DNS hosts the workspace let us write records to.

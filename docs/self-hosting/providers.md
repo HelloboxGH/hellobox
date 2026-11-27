@@ -1,7 +1,7 @@
 # Connect your email provider
 
 HelloBox doesn't send or receive email by itself. It works through your account at an email
-provider: Postmark, Mailgun, Resend, Amazon SES, SendGrid, Brevo, or any SMTP server. Your mail keeps going through that
+provider: Postmark, Mailgun, Resend, Amazon SES, SendGrid, Brevo, MailerSend, or any SMTP server. Your mail keeps going through that
 account, under your name and reputation; HelloBox shows it to your team and sends the
 replies.
 
@@ -50,6 +50,7 @@ If you already send with one of these, use it. If you're choosing:
 | **Amazon SES** | The most work: about 30 minutes in AWS, once. | The cheapest at volume. New accounts start in a *sandbox* and need AWS's approval to send to anyone. |
 | **SendGrid** | Easy. Paste one key. | Receives for many domains. Each receiving domain's MX points at SendGrid. The free plan allows one events webhook. |
 | **Brevo** | Easy. Paste one key. | Receives best on a subdomain, like `reply.example.com`. Attachments of received mail are fetched from Brevo. |
+| **MailerSend** | Easy. Paste one token. | Receives for many domains. Each domain needs its own events webhook, and plans cap them. Threading replies needs a paid plan. |
 | **SMTP** | Easy. A server, a username and a password. | Only sends, so it needs HelloBox's own mail server to receive. Sent mail shows *Sent*, never *Delivered*, and campaigns aren't available. |
 
 You can connect more than one provider to a workspace later.
@@ -439,6 +440,27 @@ connection's instead.
 Brevo writes its own Message-ID on mail it sends, and HelloBox keeps it, so replies still
 thread. Brevo keeps no copy of received mail, so HelloBox must be reachable when it arrives.
 
+## MailerSend
+
+**What you need:** a MailerSend account and an API token for **All domains** with **Full
+access**.
+
+1. In MailerSend, open **Integrations → API tokens → Generate new token**, choose all domains
+   and full access, and copy it. MailerSend shows it once.
+2. In HelloBox, open **Settings → Domains → Connect a provider → MailerSend**, paste the token
+   and press **Connect**.
+3. Your MailerSend domains appear. **Add domain** adds a new one.
+4. On each domain you want to receive on, turn on **Receiving**. HelloBox adds a catch-all
+   inbound route for it and shows the MX record to add.
+
+HelloBox adds a signed events webhook to each domain, so sent mail shows *Delivered*, bounces
+and spam reports. MailerSend's plans cap webhooks; a domain left without one still works, and
+HelloBox says so.
+
+MailerSend writes its own Message-ID. HelloBox threads replies with MailerSend's
+`in_reply_to` and `references`, which its free plan doesn't allow; there, replies go out
+without them, so the other person's mail app may not thread them.
+
 ## SMTP
 
 **What you need:** an SMTP server you can send through with a username and password, such as
@@ -466,7 +488,7 @@ If the password changes, the connection shows **Connect again**.
 ## Set up your domains
 
 After you connect, **Settings → Domains** lists the domains in your provider account. For
-Postmark, Mailgun, SES, SendGrid and Brevo, **Add domain** adds a new one; for Resend, add it in Resend. For
+Postmark, Mailgun, SES, SendGrid, Brevo and MailerSend, **Add domain** adds a new one; for Resend, add it in Resend. For
 SMTP, add each domain you send from.
 
 ### Add the DNS records
@@ -534,6 +556,7 @@ address private.
 | Amazon SES | `/api/webhooks/ses/<connection>/inbound` and `/events` |
 | SendGrid | `/api/webhooks/sendgrid/<connection>/inbound` and `/events` |
 | Brevo | `/api/webhooks/brevo/<connection>/inbound` and `/events` |
+| MailerSend | `/api/webhooks/mailersend/<connection>/inbound` and `/events` |
 
 If you change `APP_URL` later, your provider still calls the old addresses: press
 **Reconnect** (or **Connect again**) on each connection.

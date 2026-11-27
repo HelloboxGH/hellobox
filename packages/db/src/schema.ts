@@ -263,6 +263,16 @@ export interface ConnectionConfig {
     // False when Brevo wouldn't take the events webhook.
     events: boolean;
   };
+  // MailerSend: each receiving domain with our inbound route and the MX it wants, and an
+  // events webhook per MailerSend domain id (its webhooks belong to one domain), with its
+  // signing secret encrypted. The API token is in accessTokenEnc, the token in our
+  // inbound address in secondaryTokenEnc.
+  mailersend?: {
+    inbound: Record<string, { routeId: string; mx: string }>;
+    webhooks: Record<string, { id: string; secretEnc: string }>;
+    // False when MailerSend wouldn't take a webhook for every domain.
+    events: boolean;
+  };
   // SMTP: the server and who signs in. The password is in accessTokenEnc. The server can't
   // list domains, so these are the ones the customer added.
   smtp?: {

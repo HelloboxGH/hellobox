@@ -4,10 +4,12 @@ import { getExtensions } from "@hellobox/extensions";
 import {
   BrevoProvider,
   isBrevoAuthError,
+  isMailersendAuthError,
   isMailgunAuthError,
   isPostmarkAuthError,
   isSendgridAuthError,
   isSmtpAuthError,
+  MailersendProvider,
   MailgunProvider,
   PROVIDER_INFO,
   PostmarkProvider,
@@ -147,6 +149,17 @@ export function brevoProviderFor(connection: Connection) {
   });
 }
 
+export function mailersendProviderFor(connection: Connection) {
+  const { mailersend } = connection.config;
+  if (!mailersend || !connection.accessTokenEnc) throw new Error("This MailerSend connection hasn't finished connecting");
+  return new MailersendProvider({
+    workspaceId: connection.workspaceId,
+    connectionId: connection.id,
+    apiKey: decrypt(connection.accessTokenEnc),
+    inbound: mailersend.inbound,
+  });
+}
+
 export function smtpProviderFor(connection: Connection) {
   const { smtp } = connection.config;
   if (!smtp || !connection.accessTokenEnc) throw new Error("This SMTP connection hasn't finished connecting");
@@ -172,6 +185,8 @@ export function providerFor(connection: Connection): MailProvider {
       return sendgridProviderFor(connection);
     case "brevo":
       return brevoProviderFor(connection);
+    case "mailersend":
+      return mailersendProviderFor(connection);
     default: {
       // A kind cloud implements (the public demo's).
       const make = getExtensions().mail?.providers?.[connection.provider];
@@ -209,6 +224,12 @@ export async function tearDownConnection(connection: Connection) {
       case "brevo":
         if (connection.status === "active") await brevoProviderFor(connection).disconnect(connection.webhookId);
         return;
+      case "mailersend":
+        if (connection.status === "active") {
+          const webhooks = Object.values(connection.config.mailersend?.webhooks ?? {}).map((webhook) => webhook.id);
+          await mailersendProviderFor(connection).disconnect(webhooks);
+        }
+        return;
       // Nothing was set up at the server.
       case "smtp":
       case "demo":
@@ -244,6 +265,7 @@ export function grantErrorProvider(error: unknown): ProviderKind | null {
   if (isSmtpAuthError(error)) return "smtp";
   if (isSendgridAuthError(error)) return "sendgrid";
   if (isBrevoAuthError(error)) return "brevo";
+  if (isMailersendAuthError(error)) return "mailersend";
   if (error instanceof OAuthGrantError) return "resend";
   // "Access token is missing required scopes: full_access", or a token Resend no longer knows.
   if (error instanceof ResendApiError && (error.status === 401 || (error.status === 403 && /scope/i.test(error.message)))) {

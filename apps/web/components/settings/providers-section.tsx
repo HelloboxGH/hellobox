@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowSquareOut, Check, EnvelopeSimple, HourglassMedium, Mailbox, PaperPlaneTilt, Plus, Warning } from "@phosphor-icons/react";
+import { ArrowSquareOut, Check, EnvelopeSimple, HourglassMedium, Mailbox, PaperPlaneRight, PaperPlaneTilt, Plus, Warning } from "@phosphor-icons/react";
 import { type FormEvent, useCallback, useEffect, useState } from "react";
 import { SES_REGIONS, stackConsoleUrl, type SesRegion } from "@hellobox/providers/connect";
 import { PROVIDER_INFO, type ProviderKind } from "@hellobox/providers/types";
@@ -86,6 +86,11 @@ export function ProvidersSection({ data, refresh, admin }: { data: Bootstrap; re
     const broken = data.connections.find((c) => c.provider === "mailgun" && c.status === "needs_reconnect");
     return { reconnectId: broken?.id };
   });
+  const [mailersend, setMailersend] = useState<{ reconnectId?: string } | null>(() => {
+    if (requested !== "mailersend" || !admin) return null;
+    const broken = data.connections.find((c) => c.provider === "mailersend" && c.status === "needs_reconnect");
+    return { reconnectId: broken?.id };
+  });
   const [brevo, setBrevo] = useState<{ reconnectId?: string } | null>(() => {
     if (requested !== "brevo" || !admin) return null;
     const broken = data.connections.find((c) => c.provider === "brevo" && c.status === "needs_reconnect");
@@ -115,7 +120,7 @@ export function ProvidersSection({ data, refresh, admin }: { data: Bootstrap; re
     smtp: data.helloboxMx ? "ready" : "hidden",
     sendgrid: "ready",
     brevo: "ready",
-    mailersend: "hidden",
+    mailersend: "ready",
     mailjet: "hidden",
     bird: "hidden",
     custom: "hidden",
@@ -129,6 +134,7 @@ export function ProvidersSection({ data, refresh, admin }: { data: Bootstrap; re
     else if (kind === "smtp") setSmtp({});
     else if (kind === "sendgrid") setSendgrid({});
     else if (kind === "brevo") setBrevo({});
+    else if (kind === "mailersend") setMailersend({});
     // An API route that redirects to Resend, so a full page load.
     else if (kind === "resend") window.location.assign(new URL(connectHref, window.location.origin));
   }
@@ -182,6 +188,15 @@ export function ProvidersSection({ data, refresh, admin }: { data: Bootstrap; re
             refresh={refresh}
             admin={admin}
             onReconnect={() => setSendgrid({ reconnectId: connection.id })}
+          />
+        ) : connection.provider === "mailersend" ? (
+          <MailersendConnection
+            key={connection.id}
+            connection={connection}
+            data={data}
+            refresh={refresh}
+            admin={admin}
+            onReconnect={() => setMailersend({ reconnectId: connection.id })}
           />
         ) : connection.provider === "brevo" ? (
           <BrevoConnection
@@ -250,6 +265,12 @@ export function ProvidersSection({ data, refresh, admin }: { data: Bootstrap; re
         open={sendgrid !== null}
         reconnectId={sendgrid?.reconnectId}
         onOpenChange={(open) => !open && setSendgrid(null)}
+        refresh={refresh}
+      />
+      <MailersendConnectDialog
+        open={mailersend !== null}
+        reconnectId={mailersend?.reconnectId}
+        onOpenChange={(open) => !open && setMailersend(null)}
         refresh={refresh}
       />
       <BrevoConnectDialog
@@ -1333,6 +1354,87 @@ function BrevoConnection({ connection, data, refresh, admin, onReconnect }: {
           refresh={refresh}
           canAdd
           emptyText="No domains in Brevo yet. Add one to send and receive from it."
+          receiving={(domain) => ({ on: domain.receivingEnabled })}
+          setReceiving={setReceiving}
+        />
+      )}
+    </div>
+  );
+}
+
+function MailersendConnectDialog({ open, onOpenChange, reconnectId, refresh }: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  reconnectId?: string;
+  refresh: () => void;
+}) {
+  const run = useRun();
+
+  async function connect(values: Record<string, string>) {
+    let events = true;
+    const done = await run(async () => {
+      events = (await call("/connections/mailersend/connect", { apiKey: values.apiKey ?? "", connectionId: reconnectId })).events;
+    });
+    if (!done) return;
+    if (events) notify(reconnectId ? "MailerSend is connected again" : "MailerSend is connected");
+    else notifyInfo("MailerSend is connected, but not every domain has delivery events: your plan's webhooks are all in use. Sent mail shows Sent, not Delivered.");
+    refresh();
+    onOpenChange(false);
+  }
+
+  return <PasteKeyDialog provider={PASTE_KEY_PROVIDERS.mailersend} open={open} onOpenChange={onOpenChange} onSubmit={connect} />;
+}
+
+function MailersendConnection({ connection, data, refresh, admin, onReconnect }: {
+  connection: Connection;
+  data: Bootstrap;
+  refresh: () => void;
+  admin: boolean;
+  onReconnect: () => void;
+}) {
+  const run = useRun();
+
+  async function setReceiving(domain: string, on: boolean) {
+    return (await call("/connections/mailersend/receiving", { connectionId: connection.id, domain, on })).mx;
+  }
+
+  return (
+    <div className="space-y-3 rounded-2xl border p-3">
+      <ProviderRow icon={<PaperPlaneRight className="size-5 text-primary" />} name="MailerSend" status={connection.status}>
+        {admin && connection.status === "needs_reconnect" && <Button size="sm" onClick={onReconnect}>Connect again</Button>}
+        {admin && (
+          <DisconnectButton
+            title="Disconnect MailerSend?"
+            description="New mail stops arriving and sending stops. Your existing mail stays here. We remove our inbound routes and webhooks from MailerSend; your domains stay there."
+            onConfirm={async () => {
+              await run(() => call("/connections/disconnect", { id: connection.id }), "Disconnected");
+              refresh();
+            }}
+          />
+        )}
+      </ProviderRow>
+
+      {connection.status === "needs_reconnect" && (
+        <Alert variant="warning" className="rounded-xl">
+          <Warning />
+          <AlertDescription>MailerSend stopped accepting the API token, so it was probably deleted. Connect again with a new token.</AlertDescription>
+        </Alert>
+      )}
+      {connection.status === "active" && connection.mailersendEvents === false && (
+        <Alert variant="info" className="rounded-xl">
+          <Warning />
+          <AlertDescription>Some domains have no delivery events: MailerSend&apos;s plan limit on webhooks was reached. Their sent mail shows Sent, not Delivered.</AlertDescription>
+        </Alert>
+      )}
+
+      {connection.status === "active" && (
+        <DomainList
+          connection={connection}
+          data={data}
+          admin={admin}
+          refresh={refresh}
+          canAdd
+          emptyText="No domains in MailerSend yet. Add one to send and receive from it."
           receiving={(domain) => ({ on: domain.receivingEnabled })}
           setReceiving={setReceiving}
         />

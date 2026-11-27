@@ -45,3 +45,4 @@ export * from "./notifications";
 export * from "./smtp";
 export * from "./sendgrid";
 export * from "./brevo";
+export * from "./mailersend";
