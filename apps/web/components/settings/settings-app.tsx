@@ -1104,6 +1104,7 @@ function RulesTab({ admin }: { admin: boolean }) {
   const [state, setState] = useState<Awaited<ReturnType<typeof call<"/rules/list">>> | null>(null);
   const [domain, setDomain] = useState("");
   const [blockValue, setBlockValue] = useState("");
+  const [sendersOpen, setSendersOpen] = useState(false);
   // A personal mail provider's domain waits here for a second yes.
   const [confirmCommon, setConfirmCommon] = useState<string | null>(null);
   const [category, setCategory] = useState<(typeof CATEGORIES)[number]["value"]>("notifications");
@@ -1148,6 +1149,16 @@ function RulesTab({ admin }: { admin: boolean }) {
         </Form>}
       </Section>
       <Section title="Sender lists" description="Mail from a blocked address or domain is refused when it arrives through HelloBox's own mail server (the sender gets a bounce), and goes straight to Spam when it arrives through your provider. You also block a sender after Report spam, allow one with Not spam, and add one here when you show their images.">
+        <Button variant="outline" size="sm" className="self-start" onClick={() => setSendersOpen(true)}>
+          Show blocked senders and domains{state ? ` (${state.senders.length})` : ""}
+        </Button>
+        <Dialog open={sendersOpen} onOpenChange={setSendersOpen}>
+          <DialogPopup className="sm:max-w-xl">
+            <DialogHeader>
+              <DialogTitle>Sender lists</DialogTitle>
+              <DialogDescription>Blocked, allowed and image-allowed senders and domains.</DialogDescription>
+            </DialogHeader>
+            <DialogPanel className="space-y-3">
         <ul className="divide-y">
           {state?.senders.map((sender) => (
             <li key={sender.id} className="flex items-center gap-2 py-2 text-sm">
@@ -1200,7 +1211,10 @@ function RulesTab({ admin }: { admin: boolean }) {
             )}
           </>
         )}
-      </Section>
+                  </DialogPanel>
+          </DialogPopup>
+        </Dialog>
+        </Section>
       <NeverSpamSection />
     </div>
   );
