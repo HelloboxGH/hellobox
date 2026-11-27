@@ -14,3 +14,4 @@ export * from "./smtp";
 export * from "./sendgrid";
 export * from "./brevo";
 export * from "./mailersend";
+export * from "./mailjet";

@@ -20,6 +20,7 @@ import { sesActions } from "./actions/ses";
 import { sendgridActions } from "./actions/sendgrid";
 import { brevoActions } from "./actions/brevo";
 import { mailersendActions } from "./actions/mailersend";
+import { mailjetActions } from "./actions/mailjet";
 import { smtpActions } from "./actions/smtp";
 import { supportActions } from "./actions/support";
 import { threadActions } from "./actions/threads";
@@ -45,6 +46,7 @@ export const allActions = {
   ...sendgridActions,
   ...brevoActions,
   ...mailersendActions,
+  ...mailjetActions,
   ...smtpActions,
   ...supportActions,
   ...threadActions,

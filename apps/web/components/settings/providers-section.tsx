@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowSquareOut, Check, EnvelopeSimple, HourglassMedium, Mailbox, PaperPlaneRight, PaperPlaneTilt, Plus, Warning } from "@phosphor-icons/react";
+import { ArrowSquareOut, Check, EnvelopeSimple, HourglassMedium, Mailbox, PaperPlane, PaperPlaneRight, PaperPlaneTilt, Plus, Warning } from "@phosphor-icons/react";
 import { type FormEvent, useCallback, useEffect, useState } from "react";
 import { SES_REGIONS, stackConsoleUrl, type SesRegion } from "@hellobox/providers/connect";
 import { PROVIDER_INFO, type ProviderKind } from "@hellobox/providers/types";
@@ -86,6 +86,11 @@ export function ProvidersSection({ data, refresh, admin }: { data: Bootstrap; re
     const broken = data.connections.find((c) => c.provider === "mailgun" && c.status === "needs_reconnect");
     return { reconnectId: broken?.id };
   });
+  const [mailjet, setMailjet] = useState<{ reconnectId?: string } | null>(() => {
+    if (requested !== "mailjet" || !admin) return null;
+    const broken = data.connections.find((c) => c.provider === "mailjet" && c.status === "needs_reconnect");
+    return { reconnectId: broken?.id };
+  });
   const [mailersend, setMailersend] = useState<{ reconnectId?: string } | null>(() => {
     if (requested !== "mailersend" || !admin) return null;
     const broken = data.connections.find((c) => c.provider === "mailersend" && c.status === "needs_reconnect");
@@ -121,7 +126,7 @@ export function ProvidersSection({ data, refresh, admin }: { data: Bootstrap; re
     sendgrid: "ready",
     brevo: "ready",
     mailersend: "ready",
-    mailjet: "hidden",
+    mailjet: "ready",
     bird: "hidden",
     custom: "hidden",
   };
@@ -135,6 +140,7 @@ export function ProvidersSection({ data, refresh, admin }: { data: Bootstrap; re
     else if (kind === "sendgrid") setSendgrid({});
     else if (kind === "brevo") setBrevo({});
     else if (kind === "mailersend") setMailersend({});
+    else if (kind === "mailjet") setMailjet({});
     // An API route that redirects to Resend, so a full page load.
     else if (kind === "resend") window.location.assign(new URL(connectHref, window.location.origin));
   }
@@ -188,6 +194,15 @@ export function ProvidersSection({ data, refresh, admin }: { data: Bootstrap; re
             refresh={refresh}
             admin={admin}
             onReconnect={() => setSendgrid({ reconnectId: connection.id })}
+          />
+        ) : connection.provider === "mailjet" ? (
+          <MailjetConnection
+            key={connection.id}
+            connection={connection}
+            data={data}
+            refresh={refresh}
+            admin={admin}
+            onReconnect={() => setMailjet({ reconnectId: connection.id })}
           />
         ) : connection.provider === "mailersend" ? (
           <MailersendConnection
@@ -265,6 +280,12 @@ export function ProvidersSection({ data, refresh, admin }: { data: Bootstrap; re
         open={sendgrid !== null}
         reconnectId={sendgrid?.reconnectId}
         onOpenChange={(open) => !open && setSendgrid(null)}
+        refresh={refresh}
+      />
+      <MailjetConnectDialog
+        open={mailjet !== null}
+        reconnectId={mailjet?.reconnectId}
+        onOpenChange={(open) => !open && setMailjet(null)}
         refresh={refresh}
       />
       <MailersendConnectDialog
@@ -1442,3 +1463,85 @@ function MailersendConnection({ connection, data, refresh, admin, onReconnect }:
     </div>
   );
 }
+
+function MailjetConnectDialog({ open, onOpenChange, reconnectId, refresh }: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  reconnectId?: string;
+  refresh: () => void;
+}) {
+  const run = useRun();
+
+  async function connect(values: Record<string, string>) {
+    let events = true;
+    const done = await run(async () => {
+      events = (await call("/connections/mailjet/connect", { apiKey: values.apiKey ?? "", secretKey: values.secretKey ?? "", connectionId: reconnectId })).events;
+    });
+    if (!done) return;
+    if (events) notify(reconnectId ? "Mailjet is connected again" : "Mailjet is connected");
+    else notifyInfo("Mailjet is connected, but some delivery events are missing: Mailjet already sends them to another address. Sent mail shows Sent, not Delivered.");
+    refresh();
+    onOpenChange(false);
+  }
+
+  return <PasteKeyDialog provider={PASTE_KEY_PROVIDERS.mailjet} open={open} onOpenChange={onOpenChange} onSubmit={connect} />;
+}
+
+function MailjetConnection({ connection, data, refresh, admin, onReconnect }: {
+  connection: Connection;
+  data: Bootstrap;
+  refresh: () => void;
+  admin: boolean;
+  onReconnect: () => void;
+}) {
+  const run = useRun();
+
+  async function setReceiving(domain: string, on: boolean) {
+    return (await call("/connections/mailjet/receiving", { connectionId: connection.id, domain, on })).mx;
+  }
+
+  return (
+    <div className="space-y-3 rounded-2xl border p-3">
+      <ProviderRow icon={<PaperPlane className="size-5 text-warning" />} name="Mailjet" status={connection.status}>
+        {admin && connection.status === "needs_reconnect" && <Button size="sm" onClick={onReconnect}>Connect again</Button>}
+        {admin && (
+          <DisconnectButton
+            title="Disconnect Mailjet?"
+            description="New mail stops arriving and sending stops. Your existing mail stays here. We remove our parse routes and event callbacks from Mailjet; your domains stay there."
+            onConfirm={async () => {
+              await run(() => call("/connections/disconnect", { id: connection.id }), "Disconnected");
+              refresh();
+            }}
+          />
+        )}
+      </ProviderRow>
+
+      {connection.status === "needs_reconnect" && (
+        <Alert variant="warning" className="rounded-xl">
+          <Warning />
+          <AlertDescription>Mailjet stopped accepting the keys, so they were probably deleted. Connect again with new ones.</AlertDescription>
+        </Alert>
+      )}
+      {connection.status === "active" && connection.mailjetEvents === false && (
+        <Alert variant="info" className="rounded-xl">
+          <Warning />
+          <AlertDescription>Some delivery events are missing: Mailjet already sends them to another address (it takes one per event type). Remove that one in Mailjet&apos;s Event Tracking, then connect again.</AlertDescription>
+        </Alert>
+      )}
+
+      {connection.status === "active" && (
+        <DomainList
+          connection={connection}
+          data={data}
+          admin={admin}
+          refresh={refresh}
+          canAdd
+          emptyText="No domains in Mailjet yet. Add one to send and receive from it."
+          receiving={(domain) => ({ on: domain.receivingEnabled })}
+          setReceiving={setReceiving}
+        />
+      )}
+    </div>
+  );
+}
+

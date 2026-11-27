@@ -1,7 +1,7 @@
 # Connect your email provider
 
 HelloBox doesn't send or receive email by itself. It works through your account at an email
-provider: Postmark, Mailgun, Resend, Amazon SES, SendGrid, Brevo, MailerSend, or any SMTP server. Your mail keeps going through that
+provider: Postmark, Mailgun, Resend, Amazon SES, SendGrid, Brevo, MailerSend, Mailjet, or any SMTP server. Your mail keeps going through that
 account, under your name and reputation; HelloBox shows it to your team and sends the
 replies.
 
@@ -51,6 +51,7 @@ If you already send with one of these, use it. If you're choosing:
 | **SendGrid** | Easy. Paste one key. | Receives for many domains. Each receiving domain's MX points at SendGrid. The free plan allows one events webhook. |
 | **Brevo** | Easy. Paste one key. | Receives best on a subdomain, like `reply.example.com`. Attachments of received mail are fetched from Brevo. |
 | **MailerSend** | Easy. Paste one token. | Receives for many domains. Each domain needs its own events webhook, and plans cap them. Threading replies needs a paid plan. |
+| **Mailjet** | Easy. Paste two keys. | Receiving needs a paid Mailjet plan. Mailjet takes one events address per event type for the whole account. |
 | **SMTP** | Easy. A server, a username and a password. | Only sends, so it needs HelloBox's own mail server to receive. Sent mail shows *Sent*, never *Delivered*, and campaigns aren't available. |
 
 You can connect more than one provider to a workspace later.
@@ -461,6 +462,25 @@ MailerSend writes its own Message-ID. HelloBox threads replies with MailerSend's
 `in_reply_to` and `references`, which its free plan doesn't allow; there, replies go out
 without them, so the other person's mail app may not thread them.
 
+## Mailjet
+
+**What you need:** a Mailjet account, its **API key** and **secret key**, and a paid plan if you
+want to receive (Mailjet's Parse API isn't on the free plan).
+
+1. In Mailjet, open **Account settings → API Key Management** and copy the API key and the
+   secret key.
+2. In HelloBox, open **Settings → Domains → Connect a provider → Mailjet**, paste both and press
+   **Connect**.
+3. Your Mailjet domains appear. **Add domain** adds one; add the records HelloBox shows (a TXT
+   that proves the domain is yours, DKIM and SPF), then **Check again**.
+4. On each domain you want to receive on, turn on **Receiving**. HelloBox adds a parse route for
+   it and shows the MX record (`parse.mailjet.com`).
+
+HelloBox adds event callbacks for sent, bounced, blocked and spam mail. Mailjet keeps one
+address per event type for the whole account: if one is already set, for another tool, HelloBox
+leaves it and says so. Mailjet signs neither its events nor received mail, so each address
+carries a long secret of the connection's.
+
 ## SMTP
 
 **What you need:** an SMTP server you can send through with a username and password, such as
@@ -488,7 +508,7 @@ If the password changes, the connection shows **Connect again**.
 ## Set up your domains
 
 After you connect, **Settings → Domains** lists the domains in your provider account. For
-Postmark, Mailgun, SES, SendGrid, Brevo and MailerSend, **Add domain** adds a new one; for Resend, add it in Resend. For
+Postmark, Mailgun, SES, SendGrid, Brevo, MailerSend and Mailjet, **Add domain** adds a new one; for Resend, add it in Resend. For
 SMTP, add each domain you send from.
 
 ### Add the DNS records
@@ -557,6 +577,7 @@ address private.
 | SendGrid | `/api/webhooks/sendgrid/<connection>/inbound` and `/events` |
 | Brevo | `/api/webhooks/brevo/<connection>/inbound` and `/events` |
 | MailerSend | `/api/webhooks/mailersend/<connection>/inbound` and `/events` |
+| Mailjet | `/api/webhooks/mailjet/<connection>/inbound` and `/events` |
 
 If you change `APP_URL` later, your provider still calls the old addresses: press
 **Reconnect** (or **Connect again**) on each connection.

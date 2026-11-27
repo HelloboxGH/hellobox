@@ -273,6 +273,15 @@ export interface ConnectionConfig {
     // False when MailerSend wouldn't take a webhook for every domain.
     events: boolean;
   };
+  // Mailjet: each receiving domain with the id of our parse route for it, and our event
+  // callback ids (one per event type). The secret key is in accessTokenEnc, the API key in
+  // secondaryTokenEnc, and the token in our webhook addresses in webhookSecretEnc.
+  mailjet?: {
+    inbound: Record<string, string>;
+    callbacks: string[];
+    // False when Mailjet wouldn't take a callback for every event type.
+    events: boolean;
+  };
   // SMTP: the server and who signs in. The password is in accessTokenEnc. The server can't
   // list domains, so these are the ones the customer added.
   smtp?: {

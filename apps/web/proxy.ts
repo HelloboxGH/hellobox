@@ -19,6 +19,6 @@ export async function proxy(request: Request) {
 
 export const config = {
   // Next caps the bodies of requests that go through here at 10 MB. Support messages carry
-  // files, and the mail server SendGrid's Inbound Parse and MailerSend's inbound routes post whole emails.
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|api/support/|api/mx/|api/webhooks/sendgrid/|api/webhooks/mailersend/).*)"],
+  // files, and the mail server SendGrid's Inbound Parse, MailerSend's inbound routes and Mailjet's Parse API post whole emails.
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|api/support/|api/mx/|api/webhooks/sendgrid/|api/webhooks/mailersend/|api/webhooks/mailjet/).*)"],
 };

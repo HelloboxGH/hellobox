@@ -12,6 +12,7 @@ import {
   setPostmarkReceiving,
 } from "./postmark";
 import { addSmtpDomain, smtpDomainSetup } from "./smtp";
+import { addMailjetDomain, applyMailjetDomainDns, mailjetDomainSetup, setMailjetReceiving } from "./mailjet";
 import { addMailersendDomain, applyMailersendDomainDns, ensureMailersendWebhooks, mailersendDomainSetup, setMailersendReceiving } from "./mailersend";
 import { addBrevoDomain, applyBrevoDomainDns, brevoDomainSetup, setBrevoReceiving } from "./brevo";
 import { addSendgridDomain, applySendgridDomainDns, sendgridDomainSetup, setSendgridReceiving } from "./sendgrid";
@@ -42,6 +43,7 @@ export async function addProviderDomain(connectionId: string, workspaceId: strin
   if (kind === "sendgrid") return addSendgridDomain(connectionId, workspaceId, domain);
   if (kind === "brevo") return addBrevoDomain(connectionId, workspaceId, domain);
   if (kind === "mailersend") return addMailersendDomain(connectionId, workspaceId, domain);
+  if (kind === "mailjet") return addMailjetDomain(connectionId, workspaceId, domain);
   return addResendReceivingDomain(connectionId, workspaceId, domain);
 }
 
@@ -54,6 +56,7 @@ export async function providerDomainSetup(connectionId: string, workspaceId: str
   if (kind === "sendgrid") return sendgridDomainSetup(connectionId, workspaceId, domain);
   if (kind === "brevo") return brevoDomainSetup(connectionId, workspaceId, domain);
   if (kind === "mailersend") return mailersendDomainSetup(connectionId, workspaceId, domain);
+  if (kind === "mailjet") return mailjetDomainSetup(connectionId, workspaceId, domain);
   return resendDomainSetup(connectionId, workspaceId, domain);
 }
 
@@ -67,6 +70,7 @@ export async function applyProviderDomainDns(connectionId: string, workspaceId: 
   if (kind === "sendgrid") return applySendgridDomainDns(connectionId, workspaceId, domain, host);
   if (kind === "brevo") return applyBrevoDomainDns(connectionId, workspaceId, domain, host);
   if (kind === "mailersend") return applyMailersendDomainDns(connectionId, workspaceId, domain, host);
+  if (kind === "mailjet") return applyMailjetDomainDns(connectionId, workspaceId, domain, host);
   return applyResendDomainDns(connectionId, workspaceId, domain, host);
 }
 
@@ -84,6 +88,8 @@ export async function refreshProviderDomain(connectionId: string, workspaceId: s
   if (kind === "sendgrid") await sendgridDomainSetup(connectionId, workspaceId, domain);
   // And Brevo to authenticate.
   if (kind === "brevo") await brevoDomainSetup(connectionId, workspaceId, domain);
+  // Mailjet to check the DNS and validate the domain's sender.
+  if (kind === "mailjet") await mailjetDomainSetup(connectionId, workspaceId, domain);
   // MailerSend to verify, and a domain added in its dashboard gets its events webhook.
   if (kind === "mailersend") {
     await mailersendDomainSetup(connectionId, workspaceId, domain);
@@ -158,6 +164,11 @@ export async function setupReceivingSubdomain(connectionId: string, workspaceId:
   if (connection.provider === "sendgrid") {
     const added = await addSendgridDomain(connectionId, workspaceId, subdomain);
     const result = await setSendgridReceiving(connectionId, workspaceId, subdomain, true);
+    return { setup: combine(added, result.mx), waiting: false };
+  }
+  if (connection.provider === "mailjet") {
+    const added = await addMailjetDomain(connectionId, workspaceId, subdomain);
+    const result = await setMailjetReceiving(connectionId, workspaceId, subdomain, true);
     return { setup: combine(added, result.mx), waiting: false };
   }
   if (connection.provider === "mailersend") {
