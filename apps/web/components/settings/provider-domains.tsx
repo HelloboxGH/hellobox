@@ -1,7 +1,8 @@
 "use client";
 
 import { ArrowClockwise, ArrowElbowDownRight, Check, DotsThree, HourglassMedium, Plus, Warning } from "@phosphor-icons/react";
-import { type FormEvent, type ReactNode, useState } from "react";
+import { type FormEvent, type ReactNode, useEffect, useState } from "react";
+import { useSearchParam } from "@/core/client/use-search-param";
 import { groupDomains, subdomainProblem } from "@hellobox/mail/domain-names";
 import { PROVIDER_INFO, type ProviderKind } from "@hellobox/providers/types";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -51,6 +52,21 @@ export function DomainList({ connection, data, admin, refresh, receiving, setRec
   const [subdomainFor, setSubdomainFor] = useState<string | null>(null);
   const [guide, setGuide] = useState<{ parent: string; subdomain: string } | null>(null);
   const [helloboxFor, setHelloboxFor] = useState<Domain | null>(null);
+  // Back from connecting Cloudflare for the Receive with HelloBox dialog, it reopens on its domain.
+  const returnedConnection = useSearchParam("ses");
+  const returnedReceive = useSearchParam("receive");
+  const [handledReceive, setHandledReceive] = useState(false);
+  const receiveReturn = returnedConnection === connection.id ? returnedReceive : null;
+  if (receiveReturn && !handledReceive) {
+    const target = domains.find((domain) => domain.name === receiveReturn);
+    if (target) {
+      setHandledReceive(true);
+      setHelloboxFor(target);
+    }
+  }
+  useEffect(() => {
+    if (receiveReturn) window.history.replaceState(null, "", "/settings?tab=connection");
+  }, [receiveReturn]);
   // HelloBox's own mail server, when this HelloBox runs one. Not for the demo.
   const helloboxMx = Boolean(data.helloboxMx) && connection.provider !== "demo";
   const [addingDomain, runAdd] = useRunning();
@@ -214,7 +230,7 @@ export function DomainList({ connection, data, admin, refresh, receiving, setRec
         onClose={() => setDns(null)}
         onChanged={refresh}
       />
-      <HelloboxReceivingDialog domain={helloboxFor} onClose={() => setHelloboxFor(null)} refresh={refresh} />
+      <HelloboxReceivingDialog domain={helloboxFor} connectionId={connection.id} workspaceId={data.workspace.id} onClose={() => setHelloboxFor(null)} refresh={refresh} />
       <SubdomainDialog
         connection={connection}
         data={data}

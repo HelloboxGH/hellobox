@@ -29,21 +29,23 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 // order matters: the domain is turned on here first (proven with a TXT record), and only
 // then does its MX record move. The other way round, the mail server refuses the domain's
 // mail for good while it waits.
-export function HelloboxReceivingDialog({ domain, onClose, refresh }: {
+export function HelloboxReceivingDialog({ domain, connectionId, workspaceId, onClose, refresh }: {
   domain: Domain | null;
+  connectionId: string;
+  workspaceId: string;
   onClose: () => void;
   refresh: () => void;
 }) {
   return (
     <Dialog open={domain !== null} onOpenChange={(open) => { if (!open) onClose(); }}>
       <DialogPopup className="sm:max-w-xl">
-        {domain && <Steps key={domain.id} domain={domain} onClose={onClose} refresh={refresh} />}
+        {domain && <Steps key={domain.id} domain={domain} connectionId={connectionId} workspaceId={workspaceId} onClose={onClose} refresh={refresh} />}
       </DialogPopup>
     </Dialog>
   );
 }
 
-function Steps({ domain, onClose, refresh }: { domain: Domain; onClose: () => void; refresh: () => void }) {
+function Steps({ domain, connectionId, workspaceId, onClose, refresh }: { domain: Domain; connectionId: string; workspaceId: string; onClose: () => void; refresh: () => void }) {
   const [setup, setSetup] = useState<Setup | null>(null);
   const [on, setOn] = useState(domain.receiveWithHellobox);
   const [loading, runLoad] = useRunning();
@@ -59,6 +61,19 @@ function Steps({ domain, onClose, refresh }: { domain: Domain; onClose: () => vo
   const [replacing, setReplacing] = useState<OtherMx[] | null>(null);
   const [mxDone, setMxDone] = useState(false);
   const withCloudflare = Boolean(setup?.cloudflare.connected && setup.cloudflare.onCloudflare);
+
+  // The domain is on Cloudflare but the workspace hasn't connected it: offer to, like the DNS dialog does.
+  const offerConnect = Boolean(setup?.cloudflare.onCloudflare && !setup.cloudflare.connected);
+  const connectCloudflare = (
+    <Button
+      size="sm"
+      // eslint-disable-next-line hellobox/no-hard-coded-colors -- white on Cloudflare's orange, as on their own button
+      className="border-[#F38020] bg-[#F38020] text-white shadow-[0_1px_2px_rgb(0_0_0/0.15)] hover:bg-[#E06D10] focus-visible:ring-[#F38020]/40 [&_svg]:text-white"
+      render={<a href={`/api/cloudflare/oauth/start?${new URLSearchParams({ workspace: workspaceId, connection: connectionId, domain: domain.name, receive: "1" })}`} />}
+    >
+      <CloudflareIcon /> Connect Cloudflare
+    </Button>
+  );
 
   // DNS takes a moment to show a new record, so the check is tried a few times.
   async function confirmWithRetries() {
@@ -181,6 +196,7 @@ function Steps({ domain, onClose, refresh }: { domain: Domain; onClose: () => vo
             <Step number={1} title="Prove you control the domain" done={on}>
               <p className="text-muted-foreground text-xs">Add this TXT record where the domain&apos;s DNS is managed. It can stay there afterwards.</p>
               <Record type="TXT" rows={[["Name", setup.record.name], ["Value", setup.record.value]]} />
+              {offerConnect && !on && connectCloudflare}
               {withCloudflare && !on && (
                 <Button
                   variant="outline"

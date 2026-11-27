@@ -21,7 +21,10 @@ export async function GET(request: Request) {
   const workspaceId = params.get("workspace") ?? "";
   // The domain being set up, so the callback can go straight back to it.
   const domain = params.get("domain") ?? "";
-  const back = /^[a-z0-9.-]{3,253}$/.test(domain) ? { connectionId: params.get("connection") ?? "", domain } : null;
+  // "receive" sends it back to the Receive with HelloBox dialog instead of the DNS records.
+  const back = /^[a-z0-9.-]{3,253}$/.test(domain)
+    ? { connectionId: params.get("connection") ?? "", domain, receive: params.get("receive") === "1" }
+    : null;
   const [member] = await getDb()
     .select({ role: members.role })
     .from(members)

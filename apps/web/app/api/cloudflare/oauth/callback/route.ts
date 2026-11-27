@@ -12,12 +12,12 @@ export async function GET(request: Request) {
   // Runs per request, so the build never needs runtime env vars.
   await connection();
   const appUrl = getEnv().APP_URL;
-  let back: { connectionId: string; domain: string } | null = null;
+  let back: { connectionId: string; domain: string; receive?: boolean } | null = null;
   const done = (status: string) => {
     const query = new URLSearchParams({ tab: "connection", cloudflare: status });
     if (back && status === "connected") {
       query.set("ses", back.connectionId);
-      query.set("dns", back.domain);
+      query.set(back.receive ? "receive" : "dns", back.domain);
     }
     return Response.redirect(`${appUrl}/settings?${query}`);
   };
