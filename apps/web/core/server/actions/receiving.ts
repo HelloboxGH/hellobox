@@ -4,6 +4,7 @@ import {
   confirmHelloboxReceiving,
   pointMxToHellobox,
   removeHelloboxMxFromCloudflare,
+  restoreReplacedMx,
   ReceivingError,
   startHelloboxReceiving,
   stopHelloboxReceiving,
@@ -59,7 +60,12 @@ export const receivingCloudflareRemoveMx = adminAction("/domains/receiving/cloud
   .input(z.object({ domainId: z.string() }))
   .handler(({ input, ctx }) => explained(() => removeHelloboxMxFromCloudflare(ctx.workspace.id, input.domainId)));
 
+export const receivingCloudflareRestoreMx = adminAction("/domains/receiving/cloudflare-restore-mx")
+  .input(z.object({ domainId: z.string() }))
+  .handler(({ input, ctx }) => explained(() => restoreReplacedMx(ctx.workspace.id, input.domainId)));
+
 export const receivingActions = {
+  "/domains/receiving/cloudflare-restore-mx": receivingCloudflareRestoreMx,
   "/domains/receiving/cloudflare-txt": receivingCloudflareTxt,
   "/domains/receiving/cloudflare-mx": receivingCloudflareMx,
   "/domains/receiving/cloudflare-remove-mx": receivingCloudflareRemoveMx,

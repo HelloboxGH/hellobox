@@ -17,6 +17,7 @@ type Setup = {
   record: { name: string; value: string };
   mx: { name: string; value: string; priority: number };
   cloudflare: { onCloudflare: boolean; connected: boolean };
+  replacedMx: OtherMx[];
 };
 type OtherMx = { value: string; priority: number };
 
@@ -52,6 +53,8 @@ function Steps({ domain, onClose, refresh }: { domain: Domain; onClose: () => vo
   const [writingTxt, runTxt] = useRunning();
   const [writingMx, runMx] = useRunning();
   const [removingMx, runRemoveMx] = useRunning();
+  const [restoring, runRestore] = useRunning();
+  const [restored, setRestored] = useState(false);
   // MX records already on the domain, waiting for the user to agree they get replaced.
   const [replacing, setReplacing] = useState<OtherMx[] | null>(null);
   const [mxDone, setMxDone] = useState(false);
@@ -105,8 +108,29 @@ function Steps({ domain, onClose, refresh }: { domain: Domain; onClose: () => vo
         {withCloudflare && (
           <DialogPanel>
             <p className="text-muted-foreground text-xs">
-              Restore your provider&apos;s MX record in Cloudflare first (we don&apos;t keep what was there before). Then take HelloBox&apos;s record off.
+              {setup?.replacedMx.length && !restored
+                ? "HelloBox replaced these MX records. Put them back, and HelloBox's record comes off."
+                : "Restore your provider's MX record in Cloudflare first. Then take HelloBox's record off."}
             </p>
+            {setup?.replacedMx.length && !restored ? (
+              <>
+                <span className="mt-2 block font-mono text-xs">
+                  {setup.replacedMx.map((item) => (
+                    <span key={`${item.priority}:${item.value}`} className="block break-all">{item.priority} {item.value}</span>
+                  ))}
+                </span>
+                <Button
+                  variant="outline"
+                  className="mt-2"
+                  loading={restoring}
+                  onClick={async () => {
+                    if (await runRestore(() => call("/domains/receiving/cloudflare-restore-mx", { domainId: domain.id }), "Your MX records are back")) setRestored(true);
+                  }}
+                >
+                  <CloudflareIcon className="text-[#F38020]" /> Put them back
+                </Button>
+              </>
+            ) : null}
             <Button
               variant="outline"
               className="mt-2"
@@ -118,7 +142,7 @@ function Steps({ domain, onClose, refresh }: { domain: Domain; onClose: () => vo
                 })
               }
             >
-              <CloudflareIcon className="text-[#F38020]" /> Remove HelloBox&apos;s MX record
+              <CloudflareIcon className="text-[#F38020]" /> Just remove HelloBox&apos;s MX record
             </Button>
           </DialogPanel>
         )}

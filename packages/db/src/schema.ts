@@ -308,6 +308,8 @@ export const domains = pgTable(
     // sending stays on the provider either way.
     receiveWithHellobox: boolean("receive_with_hellobox").notNull().default(false),
     receiveToken: text("receive_token"),
+    // The MX records HelloBox replaced on Cloudflare, so they can be put back.
+    replacedMx: jsonb("replaced_mx").$type<{ value: string; priority: number }[]>(),
     // Removed in HelloBox. The row stays so its mailboxes and mail do, and so syncing
     // doesn't bring it back. Adding the domain again or restoring it clears this.
     removedAt: time("removed_at"),

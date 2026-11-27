@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import type { CloudflareRecord, DnsRecord } from "@hellobox/providers";
-import { applyHelloboxMx, type MxDns, planHelloboxMx, removeHelloboxMx } from "./receiving-dns";
+import { applyHelloboxMx, type MxDns, planHelloboxMx, removeHelloboxMx, restoreMx } from "./receiving-dns";
 
 const HOST = "mx.hellobox.example";
 
@@ -47,7 +47,13 @@ describe("applyHelloboxMx", () => {
       { content: "aspmx.l.google.com", priority: 1 },
       { content: "alt1.aspmx.l.google.com.", priority: 5 },
     ]);
-    expect(await applyHelloboxMx(dns, "acme.example", HOST, true)).toEqual({ status: "replaced" });
+    expect(await applyHelloboxMx(dns, "acme.example", HOST, true)).toEqual({
+      status: "replaced",
+      removed: [
+        { value: "aspmx.l.google.com", priority: 1 },
+        { value: "alt1.aspmx.l.google.com", priority: 5 },
+      ],
+    });
     expect(calls.filter((call) => !call.startsWith("list"))).toEqual([`create:${HOST}:10`, "delete:r0", "delete:r1"]);
     expect(records.map((record) => record.content)).toEqual([HOST]);
   });
@@ -64,7 +70,7 @@ describe("applyHelloboxMx", () => {
       { content: "mail.old.example", priority: 20 },
     ]);
     expect(await applyHelloboxMx(dns, "acme.example", HOST, false)).toMatchObject({ status: "needs-confirmation" });
-    expect(await applyHelloboxMx(dns, "acme.example", HOST, true)).toEqual({ status: "replaced" });
+    expect(await applyHelloboxMx(dns, "acme.example", HOST, true)).toMatchObject({ status: "replaced" });
     expect(records.map((record) => record.content)).toEqual([HOST]);
   });
 
@@ -86,6 +92,15 @@ describe("removeHelloboxMx", () => {
       { content: "aspmx.l.google.com", priority: 1 },
     ]);
     expect(await removeHelloboxMx(dns, "acme.example", HOST)).toBe(1);
+    expect(records.map((record) => record.content)).toEqual(["aspmx.l.google.com"]);
+  });
+});
+
+describe("restoreMx", () => {
+  it("puts the saved records back before taking ours off", async () => {
+    const { dns, calls, records } = fake([{ content: HOST, priority: 10 }]);
+    await restoreMx(dns, "acme.example", HOST, [{ value: "aspmx.l.google.com", priority: 1 }]);
+    expect(calls.filter((call) => !call.startsWith("list"))).toEqual(["create:aspmx.l.google.com:1", "delete:r0"]);
     expect(records.map((record) => record.content)).toEqual(["aspmx.l.google.com"]);
   });
 });

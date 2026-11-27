@@ -269,7 +269,7 @@ export async function startHelloboxReceiving(workspaceId: string, domainId: stri
   if (!domain.receiveToken) {
     await getDb().update(domains).set({ receiveToken: token }).where(eq(domains.id, domain.id));
   }
-  return { record: txtRecordFor(domain.name, token), mx: helloboxMxRecord(domain.name, host), on: domain.receiveWithHellobox };
+  return { record: txtRecordFor(domain.name, token), mx: helloboxMxRecord(domain.name, host), on: domain.receiveWithHellobox, replacedMx: domain.replacedMx ?? [] };
 }
 
 // Checks the TXT record and turns receiving on. False while the record isn't visible yet.

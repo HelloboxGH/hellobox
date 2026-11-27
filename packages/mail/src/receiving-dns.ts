@@ -45,7 +45,9 @@ export async function planHelloboxMx(dns: MxDns, domain: string, host: string): 
 }
 
 export type MxResult =
-  | { status: "added" | "replaced" | "already" }
+  | { status: "added" | "already" }
+  // What was removed, for putting it back later.
+  | { status: "replaced"; removed: { value: string; priority: number }[] }
   // Nothing changed yet: the user has to confirm that these stop getting mail.
   | { status: "needs-confirmation"; existing: { value: string; priority: number }[] };
 
@@ -58,7 +60,7 @@ export async function applyHelloboxMx(dns: MxDns, domain: string, host: string, 
     if (!replace) return { status: "needs-confirmation", existing: plan.others.map(({ value, priority }) => ({ value, priority })) };
     if (!plan.hasOurs) await dns.createRecord(plan.zone, helloboxMxRecordFor(domain, host));
     for (const other of plan.others) await dns.deleteRecord(plan.zone, other.id);
-    return { status: "replaced" };
+    return { status: "replaced", removed: plan.others.map(({ value, priority }) => ({ value, priority })) };
   }
   await dns.createRecord(plan.zone, helloboxMxRecordFor(domain, host));
   return { status: "added" };
@@ -71,6 +73,20 @@ export async function removeHelloboxMx(dns: MxDns, domain: string, host: string)
   const ours = found.records.filter((record) => clean(record.content) === clean(host));
   for (const record of ours) await dns.deleteRecord(found.zone, record.id);
   return ours.length;
+}
+
+// Puts the replaced records back and takes ours off, theirs first so the domain always has an MX.
+export async function restoreMx(dns: MxDns, domain: string, host: string, saved: { value: string; priority: number }[]) {
+  const found = await dns.recordsAt(domain, "MX", domain);
+  if (!found) throw new ReceivingError(`We couldn't find ${domain} in your Cloudflare account. Restore the records by hand instead.`);
+  const have = new Set(found.records.map((record) => `${clean(record.content)}:${record.priority ?? 0}`));
+  for (const record of saved) {
+    if (have.has(`${clean(record.value)}:${record.priority}`)) continue;
+    await dns.createRecord(found.zone, { type: "MX", name: domain, value: record.value, priority: record.priority, purpose: "Your previous mail server" });
+  }
+  for (const record of found.records.filter((entry) => clean(entry.content) === clean(host))) {
+    await dns.deleteRecord(found.zone, record.id);
+  }
 }
 
 const helloboxMxRecordFor = (domain: string, host: string): DnsRecord => ({
@@ -128,7 +144,12 @@ export function pointMxToHellobox(workspaceId: string, domainId: string, replace
     if (!domain.receiveWithHellobox) throw new ReceivingError("Turn receiving on first, so the mail server knows this domain");
     const host = helloboxMxHost();
     if (!host) throw new ReceivingError("Receiving with HelloBox isn't set up on this server");
-    return applyHelloboxMx(await dnsOrThrow(workspaceId), domain.name, host, replace);
+    const result = await applyHelloboxMx(await dnsOrThrow(workspaceId), domain.name, host, replace);
+    // Kept so "Stop receiving" can put them back.
+    if (result.status === "replaced") {
+      await getDb().update(domains).set({ replacedMx: result.removed }).where(eq(domains.id, domain.id));
+    }
+    return result;
   });
 }
 
@@ -138,5 +159,17 @@ export function removeHelloboxMxFromCloudflare(workspaceId: string, domainId: st
     const host = helloboxMxHost();
     if (!host) throw new ReceivingError("Receiving with HelloBox isn't set up on this server");
     return { removed: await removeHelloboxMx(await dnsOrThrow(workspaceId), domain.name, host) };
+  });
+}
+
+export function restoreReplacedMx(workspaceId: string, domainId: string) {
+  return guarded(workspaceId, async () => {
+    const domain = await domainOf(workspaceId, domainId);
+    const host = helloboxMxHost();
+    if (!host) throw new ReceivingError("Receiving with HelloBox isn't set up on this server");
+    if (!domain.replacedMx?.length) throw new ReceivingError("There are no earlier MX records stored for this domain");
+    await restoreMx(await dnsOrThrow(workspaceId), domain.name, host, domain.replacedMx);
+    await getDb().update(domains).set({ replacedMx: null }).where(eq(domains.id, domain.id));
+    return { restored: domain.replacedMx.length };
   });
 }

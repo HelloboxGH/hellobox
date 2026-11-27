@@ -267,6 +267,13 @@
       "when": 1795709890144,
       "tag": "0037_hellobox_receiving",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1795771321122,
+      "tag": "0038_bouncy_punisher",
+      "breakpoints": true
     }
   ]
 }
