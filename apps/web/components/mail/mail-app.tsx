@@ -94,7 +94,7 @@ function readDismissed(workspaceId: string) {
 function SetupBanner({ data }: { data: Bootstrap }) {
   const [dismissed, setDismissed] = useState(() => readDismissed(data.workspace.id));
   if (data.role === "member") return null;
-  const notReceiving = data.domains.filter((d) => d.enabled && !d.receivingEnabled);
+  const notReceiving = data.domains.filter((d) => d.enabled && !d.receivingEnabled && !d.receiveWithHellobox);
   const broken = data.connections.find((c) => c.status === "needs_reconnect");
   const signature = broken
     ? `reconnect:${broken.id}`

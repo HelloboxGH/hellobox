@@ -1,3 +1,4 @@
+import { resolveMx } from "node:dns/promises";
 import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { setting } from "@hellobox/config";
 import { connections, domains, getDb, mailboxes, workspaces } from "@hellobox/db";
@@ -288,3 +289,28 @@ export async function stopHelloboxReceiving(workspaceId: string, domainId: strin
   const domain = await ownedDomain(workspaceId, domainId);
   await getDb().update(domains).set({ receiveWithHellobox: false, receiveToken: null }).where(eq(domains.id, domain.id));
 }
+
+export type MxLookup = (domain: string) => Promise<{ exchange: string; priority: number }[]>;
+
+const lookupMx: MxLookup = async (domain) => {
+  try {
+    return await resolveMx(domain);
+  } catch {
+    return [];
+  }
+};
+
+// Whether the domain's MX records, as DNS answers right now, point at the mail server and
+// nowhere else. Any other record left in place gets part of the mail.
+export async function checkHelloboxMx(workspaceId: string, domainId: string, lookup: MxLookup = lookupMx) {
+  const host = mxHostOrThrow();
+  const domain = await ownedDomain(workspaceId, domainId);
+  const found = (await lookup(domain.name)).map((record) => ({
+    value: record.exchange.toLowerCase().replace(/\.$/, ""),
+    priority: record.priority,
+  }));
+  return { pointsHere: mxPointsHere(found, host), found };
+}
+
+export const mxPointsHere = (found: { value: string }[], host: string) =>
+  found.length > 0 && found.every((record) => record.value === host);

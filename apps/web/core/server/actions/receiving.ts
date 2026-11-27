@@ -1,5 +1,6 @@
 import {
   addHelloboxTxtToCloudflare,
+  checkHelloboxMx,
   cloudflareStatus,
   confirmHelloboxReceiving,
   pointMxToHellobox,
@@ -38,6 +39,11 @@ export const confirmReceiving = adminAction("/domains/receiving/confirm")
   .input(z.object({ domainId: z.string() }))
   .handler(async ({ input, ctx }) => ({ on: await explained(() => confirmHelloboxReceiving(ctx.workspace.id, input.domainId)) }));
 
+// Whether DNS shows the MX pointing at HelloBox, so the dialog only finishes once it does.
+export const checkReceivingMx = adminAction("/domains/receiving/check-mx")
+  .input(z.object({ domainId: z.string() }))
+  .handler(({ input, ctx }) => explained(() => checkHelloboxMx(ctx.workspace.id, input.domainId)));
+
 export const stopReceiving = adminAction("/domains/receiving/stop")
   .input(z.object({ domainId: z.string() }))
   .handler(async ({ input, ctx }) => {
@@ -65,6 +71,7 @@ export const receivingCloudflareRestoreMx = adminAction("/domains/receiving/clou
   .handler(({ input, ctx }) => explained(() => restoreReplacedMx(ctx.workspace.id, input.domainId)));
 
 export const receivingActions = {
+  "/domains/receiving/check-mx": checkReceivingMx,
   "/domains/receiving/cloudflare-restore-mx": receivingCloudflareRestoreMx,
   "/domains/receiving/cloudflare-txt": receivingCloudflareTxt,
   "/domains/receiving/cloudflare-mx": receivingCloudflareMx,

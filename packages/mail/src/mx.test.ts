@@ -5,6 +5,7 @@ import {
   helloboxMxHost,
   helloboxMxRecord,
   isHelloboxReceived,
+  mxPointsHere,
   mxRecipientDecision,
   type MxDeps,
   mxSignature,
@@ -173,5 +174,14 @@ describe("helloboxMxHost", () => {
       value: "mx1.example.com",
       priority: 10,
     });
+  });
+});
+
+describe("mxPointsHere", () => {
+  it("needs the mail server's record and nothing else", () => {
+    expect(mxPointsHere([{ value: "mx1.hellobox.app" }], "mx1.hellobox.app")).toBe(true);
+    expect(mxPointsHere([], "mx1.hellobox.app")).toBe(false);
+    expect(mxPointsHere([{ value: "mx1.hellobox.app" }, { value: "aspmx.l.google.com" }], "mx1.hellobox.app")).toBe(false);
+    expect(mxPointsHere([{ value: "receive-euw1.forge.rmta.net" }], "mx1.hellobox.app")).toBe(false);
   });
 });

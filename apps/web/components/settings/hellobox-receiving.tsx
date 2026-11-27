@@ -60,6 +60,31 @@ function Steps({ domain, connectionId, workspaceId, onClose, refresh }: { domain
   // MX records already on the domain, waiting for the user to agree they get replaced.
   const [replacing, setReplacing] = useState<OtherMx[] | null>(null);
   const [mxDone, setMxDone] = useState(false);
+  // Whether DNS really shows the MX at HelloBox. Done waits for it.
+  const [mxLive, setMxLive] = useState(false);
+  const [checkingMx, runCheckMx] = useRunning();
+  const [found, setFound] = useState<OtherMx[]>([]);
+
+  async function checkMx() {
+    const result = await call("/domains/receiving/check-mx", { domainId: domain.id });
+    setMxLive(result.pointsHere);
+    setFound(result.found);
+    return result.pointsHere;
+  }
+
+  // Already on: see where the MX stands.
+  useEffect(() => {
+    if (domain.receiveWithHellobox) void runCheckMx(checkMx);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [domain.id]);
+
+  async function checkMxWithRetries() {
+    for (let attempt = 0; attempt < CHECK_TRIES; attempt++) {
+      if (attempt) await sleep(CHECK_EVERY_MS);
+      if (await checkMx()) return true;
+    }
+    return false;
+  }
   const withCloudflare = Boolean(setup?.cloudflare.connected && setup.cloudflare.onCloudflare);
 
   // The domain is on Cloudflare but the workspace hasn't connected it: offer to, like the DNS dialog does.
@@ -100,7 +125,8 @@ function Steps({ domain, connectionId, workspaceId, onClose, refresh }: { domain
       }
       setReplacing(null);
       setMxDone(true);
-      notify(result.status === "already" ? "The MX record already points at HelloBox" : "The MX record now points at HelloBox");
+      notify(result.status === "already" ? "The MX record already points at HelloBox" : "The MX record is updated in Cloudflare. Checking DNS…");
+      if (!(await checkMxWithRetries())) notifyInfo("DNS doesn't show the new MX yet. Use \"Check MX\" in a minute.");
     });
   }
 
@@ -222,7 +248,7 @@ function Steps({ domain, connectionId, workspaceId, onClose, refresh }: { domain
                   : "Once the TXT record is live, check it. The mail server then takes this domain's mail as soon as the MX record points at it."}
               </p>
             </Step>
-            <Step number={3} title="Point the MX record at HelloBox" done={false} disabled={!on}>
+            <Step number={3} title="Point the MX record at HelloBox" done={mxLive} disabled={!on}>
               <p className="text-muted-foreground text-xs">
                 Replace the domain&apos;s MX records with this one. Any other MX record left in place gets part of the mail.
               </p>
@@ -253,6 +279,22 @@ function Steps({ domain, connectionId, workspaceId, onClose, refresh }: { domain
                   )}
                 </>
               )}
+              {on && (
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button variant="outline" size="sm" loading={checkingMx} onClick={() => runCheckMx(async () => {
+                    if (!(await checkMx())) notifyInfo("DNS doesn't show only the HelloBox MX record yet. Changes can take a few minutes.");
+                  })}>
+                    Check MX
+                  </Button>
+                  <span className="text-muted-foreground text-xs">
+                    {mxLive
+                      ? "DNS shows the MX pointing at HelloBox."
+                      : found.length
+                        ? `DNS still shows: ${found.map((item) => `${item.priority} ${item.value}`).join(", ")}`
+                        : "DNS shows no MX record yet."}
+                  </span>
+                </div>
+              )}
               {!on && (
                 <Alert variant="warning" className="rounded-xl">
                   <Warning />
@@ -273,7 +315,7 @@ function Steps({ domain, connectionId, workspaceId, onClose, refresh }: { domain
         {on ? (
           <>
             <Button variant="ghost" onClick={() => setConfirmStop(true)}>Stop receiving</Button>
-            <Button onClick={onClose}>Done</Button>
+            <Button disabled={!mxLive} onClick={onClose}>Done</Button>
           </>
         ) : (
           <>
